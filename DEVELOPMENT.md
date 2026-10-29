@@ -379,6 +379,8 @@ Scripts (all idempotent, all refuse to proceed on a red gate):
 | `scripts/install-macos.sh` | `verify.sh`, then `build_macos_app.sh`, then replaces `/Applications/Mouser.app` and relaunches. |
 | `scripts/sync-upstream.sh` | Fast-forwards `master` to upstream, merges upstream into a `sync/` branch off `fork`, runs `verify.sh`. |
 | `scripts/audit-deps.sh` | Re-resolves `requirements.lock` to the newest allowed versions, audits it, prints the diff. |
+| `scripts/config-apply.sh <name>` | Installs `configs/<name>.json` as the live config (validated) and restarts Mouser. |
+| `scripts/config-export.sh <name>` | Writes the live config back to `configs/<name>.json`, keeping its `_about` notes. |
 
 Typical month: run `scripts/audit-deps.sh` and commit the lock if clean; run
 `scripts/sync-upstream.sh`, resolve any conflicts in favor of the fork rules,

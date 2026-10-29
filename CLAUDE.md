@@ -52,7 +52,13 @@ contributor working here. They are enforced where possible by
    UI font through `uiState.fontFamily`. New UI must use theme tokens, not
    literal colors; the Actions Ring overlay mirrors the accent in QColor
    form. `tests/test_theme.py` pins this.
-8. **Upstream sync lifecycle.** Pull upstream with `scripts/sync-upstream.sh`
+8. **Configuration as code.** `configs/*.json` is the source of truth for
+   a machine's setup (`configs/mx4-ratmode.json` for the MX Master 4).
+   Apply with `scripts/config-apply.sh <name>`, and after changing settings
+   in the UI run `scripts/config-export.sh <name>` and commit the diff.
+   `tests/test_config_as_code.py` validates every file through the app's
+   own migration pipeline.
+9. **Upstream sync lifecycle.** Pull upstream with `scripts/sync-upstream.sh`
    on a cadence you choose (monthly is reasonable). Resolve conflicts in
    favor of these rules, then `scripts/verify.sh` must pass before the sync
    branch merges into `fork`. After merging, rebuild and reinstall with
