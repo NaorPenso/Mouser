@@ -188,7 +188,7 @@ Item {
                                         bold: isCurrent
                                     }
                                     color: isCurrent
-                                           ? hapticPage.theme.bgSidebar
+                                           ? hapticPage.theme.onAccent
                                            : hapticPage.theme.textPrimary
                                 }
 
@@ -312,7 +312,7 @@ Item {
                                         bold: isCurrent
                                     }
                                     color: isCurrent
-                                           ? hapticPage.theme.bgSidebar
+                                           ? hapticPage.theme.onAccent
                                            : hapticPage.theme.textPrimary
                                 }
 
@@ -410,7 +410,7 @@ Item {
                                 pixelSize: 14
                                 bold: true
                             }
-                            color: hapticPage.theme.bgSidebar
+                            color: hapticPage.theme.onAccent
                         }
 
                         MouseArea {

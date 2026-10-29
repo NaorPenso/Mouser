@@ -3,8 +3,10 @@
 // Apple Human Interface Guidelines palette. Every color in the UI comes
 // from here (or from a QColor constant in ui/actions_ring_overlay.py that
 // mirrors the accent) so the app reads as a native macOS utility in both
-// appearances. System blue is the single accent; semantic reds, greens and
-// oranges are the HIG system colors. tests/test_theme.py pins the accents.
+// appearances. The accent is the macOS selection blue (deeper than the iOS
+// system blue, so filled chips and toggles read as native controls) and
+// everything drawn on it uses onAccent. Semantic reds, greens and oranges
+// are the HIG system colors. tests/test_theme.py pins the accents.
 var radius = 10
 
 // Brand-asset colors are intentionally theme-independent: the sidebar
@@ -23,9 +25,10 @@ function palette(isDark) {
             bgSidebar: "#161618",
             bgInput: "#1c1c1e",
             bgSubtle: "#232325",
-            accent: "#0a84ff",       // systemBlue (dark)
-            accentHover: "#409cff",
-            accentDim: "#1b2d4a",
+            accent: "#3478f6",       // macOS control blue (dark)
+            accentHover: "#4a8bf8",
+            accentDim: "#1c2f4f",
+            onAccent: "#ffffff",     // text and icons drawn on the accent
             textPrimary: "#f5f5f7",  // label
             textSecondary: "#a1a1a6",// secondaryLabel
             textDim: "#6e6e73",      // tertiaryLabel
@@ -49,9 +52,10 @@ function palette(isDark) {
         bgSidebar: "#ececf0",
         bgInput: "#ffffff",
         bgSubtle: "#f2f2f7",
-        accent: "#007aff",           // systemBlue (light)
-        accentHover: "#0a84ff",
-        accentDim: "#e5f0ff",
+        accent: "#0063e1",           // macOS selection blue (light)
+        accentHover: "#1a6fe8",
+        accentDim: "#e4eefc",
+        onAccent: "#ffffff",         // text and icons drawn on the accent
         textPrimary: "#1d1d1f",      // label
         textSecondary: "#6e6e73",    // secondaryLabel
         textDim: "#86868b",          // tertiaryLabel

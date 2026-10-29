@@ -234,7 +234,7 @@ Item {
                                         pixelSize: 12
                                     }
                                     color: dpiSlider.value === modelData
-                                           ? scrollPage.theme.bgSidebar
+                                           ? scrollPage.theme.onAccent
                                            : scrollPage.theme.textPrimary
                                 }
 
@@ -634,7 +634,7 @@ Item {
                                         bold: backend.appearanceMode === modelData.value
                                     }
                                     color: backend.appearanceMode === modelData.value
-                                           ? scrollPage.theme.bgSidebar
+                                           ? scrollPage.theme.onAccent
                                            : scrollPage.theme.textPrimary
                                 }
 

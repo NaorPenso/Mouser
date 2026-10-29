@@ -34,7 +34,7 @@ Item {
                 verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
-                color: highlighted ? Qt.rgba(0, 0.83, 0.67, 0.1) : "transparent"
+                color: highlighted ? Qt.alpha(mousePage.theme.accent, 0.1) : "transparent"
             }
         }
     }
@@ -60,7 +60,7 @@ Item {
                 verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
-                color: highlighted ? Qt.rgba(0, 0.83, 0.67, 0.1) : "transparent"
+                color: highlighted ? Qt.alpha(mousePage.theme.accent, 0.1) : "transparent"
             }
         }
     }
@@ -586,7 +586,7 @@ Item {
                         width: profileList.width
                         height: 58
                         color: selectedProfile === modelData.name
-                               ? Qt.rgba(0, 0.83, 0.67, 0.08)
+                               ? Qt.alpha(mousePage.theme.accent, 0.08)
                                : profItemMa.containsMouse
                                  ? Qt.rgba(1, 1, 1, 0.03)
                                  : "transparent"
@@ -698,7 +698,7 @@ Item {
                                 height: 30
                                 radius: 10
                                 anchors.verticalCenter: parent.verticalCenter
-                                color: Qt.rgba(0, 0.83, 0.67, uiState.darkMode ? 0.16 : 0.14)
+                                color: Qt.alpha(mousePage.theme.accent, uiState.darkMode ? 0.16 : 0.14)
 
                                 Text {
                                     anchors.centerIn: parent
@@ -786,7 +786,7 @@ Item {
                                         visible: selectedProfileLabel !== ""
                                         width: profBadgeText.implicitWidth + 16
                                         height: 22; radius: 11
-                                        color: Qt.rgba(0, 0.83, 0.67, 0.12)
+                                        color: Qt.alpha(mousePage.theme.accent, 0.12)
                                         anchors.verticalCenter: parent.verticalCenter
 
                                         Text {
@@ -872,7 +872,7 @@ Item {
                                     var lvl = backend.batteryLevel
                                     if (lvl <= 20) return Qt.rgba(0.88, 0.2, 0.2, 0.18)
                                     if (lvl <= 40) return Qt.rgba(0.9, 0.56, 0.1, 0.18)
-                                    return Qt.rgba(0, 0.83, 0.67, uiState.darkMode ? 0.12 : 0.16)
+                                    return Qt.alpha(mousePage.theme.accent, uiState.darkMode ? 0.12 : 0.16)
                                 }
 
                                 Row {
@@ -912,7 +912,7 @@ Item {
                                 height: 24; radius: 12
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: backend.mouseConnected
-                                       ? Qt.rgba(0, 0.83, 0.67, 0.12)
+                                       ? Qt.alpha(mousePage.theme.accent, 0.12)
                                        : Qt.rgba(0.9, 0.3, 0.3, 0.15)
 
                                 Row {
@@ -2048,8 +2048,8 @@ Item {
                                 width: shareDevBtnRow.implicitWidth + 20
                                 height: 30; radius: 10
                                 color: shareDevBtnMa.containsMouse
-                                       ? Qt.rgba(0, 0.83, 0.67, 0.22)
-                                       : Qt.rgba(0, 0.83, 0.67, 0.12)
+                                       ? Qt.alpha(mousePage.theme.accent, 0.22)
+                                       : Qt.alpha(mousePage.theme.accent, 0.12)
                                 anchors.verticalCenter: parent.verticalCenter
 
                                 Row {
@@ -2271,7 +2271,7 @@ Item {
                                             height: 24
                                             radius: 12
                                             color: backend.gestureMoveSeen
-                                                   ? Qt.rgba(0, 0.83, 0.67, 0.12)
+                                                   ? Qt.alpha(mousePage.theme.accent, 0.12)
                                                    : Qt.rgba(1, 1, 1, 0.05)
 
                                             Text {
@@ -2643,7 +2643,7 @@ Item {
                         width: resultCountText.implicitWidth + 16
                         height: 22
                         radius: 11
-                        color: Qt.rgba(0, 0.83, 0.67, uiState.darkMode ? 0.12 : 0.14)
+                        color: Qt.alpha(mousePage.theme.accent, uiState.darkMode ? 0.12 : 0.14)
 
                         Text {
                             id: resultCountText
@@ -2681,7 +2681,7 @@ Item {
                             height: 58
                             radius: 15
                             color: selectedKnownApp && selectedKnownApp.id === modelData.id
-                                   ? Qt.rgba(0, 0.83, 0.67, uiState.darkMode ? 0.16 : 0.12)
+                                   ? Qt.alpha(mousePage.theme.accent, uiState.darkMode ? 0.16 : 0.12)
                                    : appRowMa.containsMouse
                                      ? Qt.rgba(1, 1, 1, uiState.darkMode ? 0.06 : 0.6)
                                      : "transparent"
@@ -2798,13 +2798,13 @@ Item {
                     radius: 16
                     color: selectedKnownApp
                            ? (createDialogMa.containsMouse ? theme.accentHover : theme.accent)
-                           : Qt.rgba(0, 0.83, 0.67, 0.22)
+                           : Qt.alpha(theme.accent, 0.22)
 
                     Text {
                         anchors.centerIn: parent
                         text: s["mouse.create_profile"]
                         font { family: uiState.fontFamily; pixelSize: 12; bold: true }
-                        color: selectedKnownApp ? theme.bgSidebar : theme.textSecondary
+                        color: selectedKnownApp ? theme.onAccent : theme.textSecondary
                     }
 
                     MouseArea {

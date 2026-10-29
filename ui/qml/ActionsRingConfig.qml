@@ -25,7 +25,7 @@ Item {
                 verticalAlignment: Text.AlignVCenter
             }
             background: Rectangle {
-                color: highlighted ? Qt.rgba(0, 0.83, 0.67, 0.1) : "transparent"
+                color: highlighted ? Qt.alpha(actionsRingConfig.theme.accent, 0.1) : "transparent"
             }
         }
     }

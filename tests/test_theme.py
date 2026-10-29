@@ -13,8 +13,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 THEME_JS = (ROOT / "ui" / "qml" / "Theme.js").read_text(encoding="utf-8")
 
-APPLE_BLUE_LIGHT = "#007aff"
-APPLE_BLUE_DARK = "#0a84ff"
+# macOS selection / control blues (NSColor.selectedContentBackgroundColor and
+# the dark-appearance control tint), deeper than the iOS system blue so filled
+# chips and toggles read as native controls.
+APPLE_BLUE_LIGHT = "#0063e1"
+APPLE_BLUE_DARK = "#3478f6"
+UPSTREAM_TEAL_RGBA = "Qt.rgba(0, 0.83, 0.67"
 UPSTREAM_TEAL = {"#00d4aa", "#00ffc8", "#0ea5a4", "#14b8a6", "#0d2e26", "#d9f4ee"}
 
 UI_SOURCES = (
@@ -32,9 +36,20 @@ def _palette(is_dark):
 
 
 class ApplePaletteTests(unittest.TestCase):
-    def test_accent_is_apple_system_blue(self):
+    def test_accent_is_macos_selection_blue(self):
         self.assertEqual(_palette(is_dark=False)["accent"], APPLE_BLUE_LIGHT)
         self.assertEqual(_palette(is_dark=True)["accent"], APPLE_BLUE_DARK)
+
+    def test_text_on_accent_is_white_and_used_by_selected_chips(self):
+        self.assertEqual(_palette(is_dark=False)["onAccent"], "#ffffff")
+        self.assertEqual(_palette(is_dark=True)["onAccent"], "#ffffff")
+        chip = (ROOT / "ui" / "qml" / "ActionChip.qml").read_text(encoding="utf-8")
+        self.assertIn("isCurrent ? theme.onAccent", chip)
+        # Nothing paints the sidebar color as text on the accent any more.
+        for path in (ROOT / "ui" / "qml").glob("*.qml"):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(file=path.name):
+                self.assertNotRegex(text, r"\?\s*(\w+\.)?theme\.bgSidebar\s*\n?\s*:\s*(\w+\.)?theme\.text")
 
     def test_semantic_colors_are_apple_system_colors(self):
         light, dark = _palette(is_dark=False), _palette(is_dark=True)
@@ -65,6 +80,8 @@ class ApplePaletteTests(unittest.TestCase):
             for color in UPSTREAM_TEAL:
                 with self.subTest(file=path.name, color=color):
                     self.assertNotIn(color, text)
+            with self.subTest(file=path.name, color="teal rgba"):
+                self.assertNotIn(UPSTREAM_TEAL_RGBA.lower(), text)
 
 
 class SystemFontTests(unittest.TestCase):

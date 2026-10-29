@@ -40,7 +40,7 @@ Rectangle {
         anchors.centerIn: parent
         text: actionLabel
         font { family: uiState.fontFamily; pixelSize: 12 }
-        color: isCurrent ? theme.bgSidebar : theme.textPrimary
+        color: isCurrent ? theme.onAccent : theme.textPrimary
     }
 
     MouseArea {
