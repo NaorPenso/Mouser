@@ -124,6 +124,25 @@ class NoAutoUpdateTests(unittest.TestCase):
         self.assertNotIn("update_check_state", settings)
 
 
+class FrozenBundleTests(unittest.TestCase):
+    """The PyInstaller specs drop the network-capable stdlib modules so the
+    frozen app cannot even import them."""
+
+    REQUIRED_EXCLUDES = {
+        "_ssl", "ssl", "http", "urllib.request", "urllib.error",
+        "urllib.response", "ftplib", "smtplib", "poplib", "imaplib",
+        "xmlrpc", "socketserver", "webbrowser",
+    }
+
+    def test_every_spec_excludes_network_stdlib(self):
+        for spec in ("Mouser-mac.spec", "Mouser.spec", "Mouser-linux.spec"):
+            text = (ROOT / spec).read_text(encoding="utf-8")
+            excludes = set(re.findall(r'^\s+"([^"]+)",', text, re.MULTILINE))
+            with self.subTest(spec=spec):
+                missing = self.REQUIRED_EXCLUDES - excludes
+                self.assertFalse(missing, f"{spec} does not exclude {sorted(missing)}")
+
+
 class DependencyPinningTests(unittest.TestCase):
     def test_lock_file_pins_every_requirement_with_hashes(self):
         lock = (ROOT / "requirements.lock").read_text(encoding="utf-8")

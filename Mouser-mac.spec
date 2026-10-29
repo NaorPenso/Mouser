@@ -116,6 +116,24 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
+        # ── Fork policy: the bundle carries no network-capable stdlib ──
+        # The app never imports these (tests/test_no_network.py); dropping
+        # them from the frozen bundle makes that structural, not just policy.
+        "_ssl",
+        "ssl",
+        "http",
+        "urllib.request",
+        "urllib.error",
+        "urllib.response",
+        "urllib.robotparser",
+        "ftplib",
+        "smtplib",
+        "poplib",
+        "imaplib",
+        "telnetlib",
+        "xmlrpc",
+        "socketserver",
+        "webbrowser",
         # ── Aggressively trim unneeded PySide6 modules ──
         "PySide6.QtWebEngine",
         "PySide6.QtWebEngineCore",
