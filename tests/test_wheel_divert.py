@@ -442,9 +442,11 @@ class BaseHookFlagTests(unittest.TestCase):
 
 class MacOSSuppressionTests(unittest.TestCase):
     """When `wheel_native_invert_active=True`, the macOS event-tap callback
-    must skip the OS-layer inversion path (`_negate_scroll_axis`) so the
-    firmware-level flip doesn't get double-applied. When inactive, in-place
-    negation runs against the original event (no block-and-reinject)."""
+    must skip the OS-layer inversion path so the firmware-level flip doesn't
+    get double-applied. When inactive (and a Logitech is connected), the
+    callback blocks the original scroll event and posts an inverted copy via
+    `_post_inverted_scroll_event`; the copy carries a source marker so the
+    tap lets it through on its second pass."""
 
     _kCGScrollWheelEventIsContinuous = 88
     _kCGEventScrollWheel = 22
@@ -520,15 +522,15 @@ class MacOSSuppressionTests(unittest.TestCase):
         self.mock_quartz.CGEventGetIntegerValueField.side_effect = (
             self._mock_get_field(is_continuous=0)
         )
-        with patch.object(hook, "_negate_scroll_axis") as negate:
+        with patch.object(hook, "_post_inverted_scroll_event",
+                          return_value=True) as post:
             result = hook._event_tap_callback(
                 None, self._kCGEventScrollWheel, cg_event, None
             )
-        # Vertical inversion negates axis 1 in place; the SAME event is
-        # returned (not None), so the caller passes it through untouched
-        # apart from the sign flip.
-        negate.assert_called_once_with(cg_event, 1)
-        self.assertIs(result, cg_event)
+        # The original event is swallowed (None) and an inverted copy is
+        # posted in its place.
+        post.assert_called_once_with(cg_event)
+        self.assertIsNone(result)
 
     def test_horizontal_inversion_negates_axis_2_in_place(self):
         hook = self._mouse_hook_macos.MouseHook()
@@ -541,12 +543,13 @@ class MacOSSuppressionTests(unittest.TestCase):
         self.mock_quartz.CGEventGetIntegerValueField.side_effect = (
             self._mock_get_field(is_continuous=0)
         )
-        with patch.object(hook, "_negate_scroll_axis") as negate:
+        with patch.object(hook, "_post_inverted_scroll_event",
+                          return_value=True) as post:
             result = hook._event_tap_callback(
                 None, self._kCGEventScrollWheel, cg_event, None
             )
-        negate.assert_called_once_with(cg_event, 2)
-        self.assertIs(result, cg_event)
+        post.assert_called_once_with(cg_event)
+        self.assertIsNone(result)
 
     def test_both_axes_inverted_in_single_pass(self):
         hook = self._mouse_hook_macos.MouseHook()
@@ -560,14 +563,19 @@ class MacOSSuppressionTests(unittest.TestCase):
         self.mock_quartz.CGEventGetIntegerValueField.side_effect = (
             self._mock_get_field(is_continuous=0)
         )
-        with patch.object(hook, "_negate_scroll_axis") as negate:
+        seen_flags = []
+        with patch.object(
+            hook, "_post_inverted_scroll_event",
+            side_effect=lambda _e: seen_flags.append(
+                (hook.invert_vscroll, hook.invert_hscroll)) or True,
+        ) as post:
             result = hook._event_tap_callback(
                 None, self._kCGEventScrollWheel, cg_event, None
             )
-        negate.assert_any_call(cg_event, 1)
-        negate.assert_any_call(cg_event, 2)
-        self.assertEqual(negate.call_count, 2)
-        self.assertIs(result, cg_event)
+        # One reinjected event carries both axis flips.
+        post.assert_called_once_with(cg_event)
+        self.assertEqual(seen_flags, [(True, True)])
+        self.assertIsNone(result)
 
     def test_os_inversion_skipped_when_no_logitech_connected(self):
         """The wheel-invert toggle is meant for Logitech scroll. When no
@@ -587,11 +595,12 @@ class MacOSSuppressionTests(unittest.TestCase):
         self.mock_quartz.CGEventGetIntegerValueField.side_effect = (
             self._mock_get_field(is_continuous=0)
         )
-        with patch.object(hook, "_negate_scroll_axis") as negate:
+        with patch.object(hook, "_post_inverted_scroll_event",
+                          return_value=True) as post:
             result = hook._event_tap_callback(
                 None, self._kCGEventScrollWheel, cg_event, None
             )
-        negate.assert_not_called()
+        post.assert_not_called()
         self.assertIs(result, cg_event)
 
     def test_os_inversion_resumes_when_logitech_reconnects(self):
@@ -609,18 +618,20 @@ class MacOSSuppressionTests(unittest.TestCase):
         )
 
         hook._connected_device = None
-        with patch.object(hook, "_negate_scroll_axis") as negate_off:
+        with patch.object(hook, "_post_inverted_scroll_event",
+                          return_value=True) as post_off:
             hook._event_tap_callback(
                 None, self._kCGEventScrollWheel, MagicMock(name="evt-off"), None
             )
-        negate_off.assert_not_called()
+        post_off.assert_not_called()
 
         hook._connected_device = self._logitech_stub()
-        with patch.object(hook, "_negate_scroll_axis") as negate_on:
+        with patch.object(hook, "_post_inverted_scroll_event",
+                          return_value=True) as post_on:
             hook._event_tap_callback(
                 None, self._kCGEventScrollWheel, MagicMock(name="evt-on"), None
             )
-        negate_on.assert_called_once()
+        post_on.assert_called_once()
 
     def test_negate_scroll_axis_flips_all_three_delta_fields_in_place(self):
         """Direct unit test: negate flips Delta, FixedPtDelta, and
