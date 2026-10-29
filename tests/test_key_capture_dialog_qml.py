@@ -50,3 +50,41 @@ class KeyCaptureDialogQmlTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+MOUSE_PAGE_QML = (ROOT / "ui" / "qml" / "MousePage.qml").read_text(
+    encoding="utf-8"
+)
+RING_CONFIG_QML = (ROOT / "ui" / "qml" / "ActionsRingConfig.qml").read_text(
+    encoding="utf-8"
+)
+
+
+class HoldShortcutQmlTests(unittest.TestCase):
+    """A custom shortcut can be held for as long as the mouse button is
+    pressed. The dialog offers the toggle only for buttons that report a
+    release, and the pages store it under the ``hold:`` prefix."""
+
+    def test_dialog_offers_hold_toggle_for_buttons_with_release(self):
+        self.assertIn("property bool holdSupported", DIALOG_QML)
+        self.assertIn("property bool holdMode", DIALOG_QML)
+        self.assertIn("backend.buttonSupportsHoldAction(", DIALOG_QML)
+        self.assertIn('s["key_capture.hold_label"]', DIALOG_QML)
+        self.assertIn('s["key_capture.hold_hint"]', DIALOG_QML)
+        self.assertIn("signal captured(string comboString, bool hold)", DIALOG_QML)
+        self.assertIn(
+            "dialog.captured(dialog._canonical, dialog.holdSupported && dialog.holdMode)",
+            DIALOG_QML,
+        )
+
+    def test_mouse_page_stores_held_shortcuts_under_hold_prefix(self):
+        self.assertIn("onCaptured: function(comboString, hold)", MOUSE_PAGE_QML)
+        self.assertIn('(hold ? "hold:" : "custom:") + comboString', MOUSE_PAGE_QML)
+        self.assertIn('actionId.startsWith("hold:")', MOUSE_PAGE_QML)
+        # Re-opening the dialog on a held shortcut keeps the toggle on.
+        self.assertIn("backend.isHoldAction(selectedActionId)", MOUSE_PAGE_QML)
+
+    def test_ring_slots_never_hold(self):
+        # Ring sectors fire on release, so a held shortcut makes no sense there.
+        self.assertIn("onCaptured: function(comboString)", RING_CONFIG_QML)
+        self.assertNotIn('"hold:"', RING_CONFIG_QML)

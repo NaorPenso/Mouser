@@ -533,3 +533,67 @@ class LinuxZoomActionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HoldShortcutTests(unittest.TestCase):
+    """``hold:<combo>`` keeps a custom shortcut pressed while the mouse
+    button is held, instead of tapping it on press."""
+
+    def test_hold_prefix_is_recognised_as_a_custom_action(self):
+        self.assertTrue(key_simulator.is_hold_action("hold:alt+grave"))
+        self.assertFalse(key_simulator.is_hold_action("custom:alt+grave"))
+        self.assertTrue(key_simulator.is_custom_action("hold:alt+grave"))
+        self.assertTrue(key_simulator.is_custom_action("custom:alt+grave"))
+        self.assertFalse(key_simulator.is_custom_action("copy"))
+
+    def test_hold_label_marks_the_shortcut_as_held(self):
+        tap = key_simulator.custom_action_label("custom:ctrl+a", platform_name="win32")
+        hold = key_simulator.custom_action_label("hold:ctrl+a", platform_name="win32")
+        self.assertEqual(tap, "Ctrl + A")
+        self.assertEqual(hold, "Ctrl + A (Hold)")
+
+    def test_parse_custom_combo_accepts_hold_prefix(self):
+        key_map = {"ctrl": 1, "a": 2}
+        self.assertEqual(
+            key_simulator._parse_custom_combo("hold:ctrl+a", key_map), [1, 2]
+        )
+
+    def test_execute_action_taps_a_hold_shortcut(self):
+        # Single-fire sources (ring slots, swipes) have no release, so a
+        # hold shortcut degrades to a normal tap there.
+        with patch.object(key_simulator, "send_key_combo") as send_key_combo, \
+             patch.object(key_simulator, "_KEY_NAME_TO_CODE", {"ctrl": 1, "a": 2}, create=True):
+            key_simulator.execute_action("hold:ctrl+a")
+        if sys.platform in ("darwin", "win32", "linux"):
+            send_key_combo.assert_called_once_with([1, 2])
+
+    @unittest.skipUnless(sys.platform == "darwin", "macOS key injection")
+    def test_macos_press_and_release_post_separate_key_events(self):
+        posted = []
+        fake_quartz = unittest.mock.MagicMock()
+        fake_quartz.CGEventCreateKeyboardEvent.side_effect = (
+            lambda _src, code, down: ("ev", code, down)
+        )
+        fake_quartz.CGEventPost.side_effect = lambda _tap, ev: posted.append(ev)
+        with patch.object(key_simulator, "Quartz", fake_quartz), \
+             patch.object(key_simulator, "_QUARTZ_OK", True):
+            key_simulator.press_key_combo([58, 50])
+            self.assertEqual(posted, [("ev", 58, True), ("ev", 50, True)])
+            posted.clear()
+            key_simulator.release_key_combo([58, 50])
+        self.assertEqual(posted, [("ev", 50, False), ("ev", 58, False)])
+
+    def test_hold_action_press_and_release_use_the_parsed_combo(self):
+        with patch.object(key_simulator, "press_key_combo") as press, \
+             patch.object(key_simulator, "release_key_combo") as release, \
+             patch.object(key_simulator, "_KEY_NAME_TO_CODE", {"alt": 7, "grave": 9}, create=True):
+            key_simulator.hold_action_press("hold:alt+grave")
+            key_simulator.hold_action_release("hold:alt+grave")
+        press.assert_called_once_with([7, 9])
+        release.assert_called_once_with([7, 9])
+
+    def test_hold_action_press_ignores_unparseable_combo(self):
+        with patch.object(key_simulator, "press_key_combo") as press, \
+             patch.object(key_simulator, "_KEY_NAME_TO_CODE", {"alt": 7}, create=True):
+            key_simulator.hold_action_press("hold:alt+nosuchkey")
+        press.assert_not_called()

@@ -1047,3 +1047,21 @@ class AppCatalogTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HoldActionSupportTests(unittest.TestCase):
+    def test_buttons_with_press_and_release_support_hold(self):
+        for button in ("xbutton1", "xbutton2", "middle", "mode_shift",
+                       "thumb_button", "dpi_switch"):
+            with self.subTest(button=button):
+                self.assertTrue(config.button_supports_hold(button))
+
+    def test_native_gesture_controls_support_hold_via_hold_events(self):
+        self.assertTrue(config.button_supports_hold("actions_ring"))
+        self.assertTrue(config.button_supports_hold("gesture"))
+
+    def test_single_fire_sources_do_not_support_hold(self):
+        for button in ("hscroll_left", "hscroll_right", "gesture_left",
+                       "actions_ring_up", "xbutton1_tap", "", "nope"):
+            with self.subTest(button=button):
+                self.assertFalse(config.button_supports_hold(button))

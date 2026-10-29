@@ -208,6 +208,16 @@ BUTTON_HOLD_EVENTS = {
     "actions_ring": ("sense_button_down", "sense_button_up"),
 }
 
+
+def button_supports_hold(button_key):
+    """True when the button reports both press and release, so a ``hold:``
+    custom shortcut can stay pressed for as long as the button is held.
+    Single-fire sources (swipes, horizontal scroll, taps) cannot hold."""
+    events = BUTTON_TO_EVENTS.get(button_key, ())
+    has_down = any(e.endswith("_down") for e in events)
+    has_up = any(e.endswith("_up") for e in events)
+    return (has_down and has_up) or button_key in BUTTON_HOLD_EVENTS
+
 # Several native actions (app_expose, mission_control, show_desktop, launchpad)
 # exist only in the macOS ACTIONS table. DEFAULT_CONFIG is shared across all
 # platforms, so the platform-varying defaults are built per OS to avoid seeding

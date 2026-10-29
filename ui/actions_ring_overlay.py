@@ -11,7 +11,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication, QWidget
 
 from core.actions_ring import DEAD_ZONE_RADIUS, angle_to_sector
-from core.key_simulator import custom_action_label
+from core.key_simulator import custom_action_label, is_custom_action
 
 # ── short-label mapping ────────────────────────────────────────────
 
@@ -69,7 +69,7 @@ RING_LABEL_MAP: dict[str, str] = {
 def _resolve_ring_label(action_id: str, full_label: str) -> str:
     if action_id in RING_LABEL_MAP:
         return RING_LABEL_MAP[action_id]
-    if action_id.startswith("custom:"):
+    if is_custom_action(action_id):
         # A custom shortcut never has a RING_LABEL_MAP entry and arrives here
         # with full_label still set to the raw "custom:..." id, so render the
         # combo instead. Labels are word-wrapped when drawn, so this branch

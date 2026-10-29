@@ -11,6 +11,7 @@ from core.mouse_hook import MouseHook, MouseEvent
 from core.key_simulator import (
     ACTIONS, execute_action, is_mouse_button_action,
     inject_mouse_down, inject_mouse_up,
+    is_hold_action, hold_action_press, hold_action_release,
 )
 from core.config import (
     load_config, get_active_mappings, get_profile_for_app_identity,
@@ -121,6 +122,7 @@ class Engine:
         self._replay_pending_rerun = False
         self._replay_lock = threading.Lock()
         self._mouse_release_timers = {}   # action_id → Timer for safety auto-release
+        self._held_shortcuts = {}         # hold: action_id → safety Timer while keys are down
         self._ring = None                 # ActionsRingController (created in _setup_hooks)
         self._ring_show_cb = None         # UI callback for showing ring overlay
         self._ring_hide_cb = None         # UI callback for hiding ring overlay
@@ -163,6 +165,7 @@ class Engine:
         write is skipped; the caller is responsible for applying it off the
         HID listener thread (see ``_on_connection_change``).
         """
+        self._release_held_shortcuts()
         mappings = get_active_mappings(self.cfg)
 
         # Apply scroll inversion settings to the hook
@@ -363,6 +366,13 @@ class Engine:
             if btn_key in ring_suppressed_swipes:
                 continue
 
+            # Held custom shortcut: keys go down with the button and come
+            # back up with it. Needs a press/release pair; single-fire
+            # sources (swipes, hscroll) fall through and tap it instead.
+            if is_hold_action(action_id):
+                if self._wire_hold_shortcut(btn_key, action_id):
+                    continue
+
             events = list(BUTTON_TO_EVENTS.get(btn_key, ()))
             has_paired_down = any(e.endswith("_down") for e in events)
             has_up = any(e.endswith("_up") for e in events)
@@ -554,6 +564,84 @@ class Engine:
                 print(f"[Engine] mouse_down_handler EXCEPTION for {action_id}: {exc}")
                 import traceback; traceback.print_exc()
         return handler
+
+    def _wire_hold_shortcut(self, btn_key, action_id):
+        """Bind a ``hold:`` shortcut to the button's press/release events.
+
+        Returns False when the button has no release event to pair with."""
+        events = list(BUTTON_TO_EVENTS.get(btn_key, ()))
+        down_evt = next((e for e in events if e.endswith("_down")), None)
+        up_evt = next((e for e in events if e.endswith("_up")), None)
+        if not (down_evt and up_evt):
+            hold_events = BUTTON_HOLD_EVENTS.get(btn_key)
+            if not hold_events:
+                return False
+            down_evt, up_evt = hold_events
+            # The native control also reports a click; swallow it so the
+            # shortcut is not tapped a second time on release.
+            for evt_type in events:
+                self.hook.block(evt_type)
+        self.hook.block(down_evt)
+        self.hook.block(up_evt)
+        self.hook.register(down_evt, self._make_hold_down_handler(action_id, btn_key))
+        self.hook.register(up_evt, self._make_hold_up_handler(action_id))
+        return True
+
+    def _make_hold_down_handler(self, action_id, btn_key=""):
+        def handler(event):
+            try:
+                if not self._enabled:
+                    return
+                self._emit_debug(
+                    f"Mapped {event.event_type} -> {action_id} (hold down)"
+                )
+                if (action_haptic_enabled(self.cfg, action_id)
+                        or button_haptic_enabled(self.cfg, btn_key)):
+                    self._play_haptic_async(1)
+                self._press_held_shortcut(action_id)
+            except Exception as exc:
+                print(f"[Engine] hold_down_handler EXCEPTION for {action_id}: {exc}")
+                import traceback; traceback.print_exc()
+        return handler
+
+    def _make_hold_up_handler(self, action_id):
+        def handler(event):
+            try:
+                # Release even when the engine was disabled mid-hold: a key
+                # must never stay down because a toggle flipped.
+                self._emit_debug(
+                    f"Mapped {event.event_type} -> {action_id} (hold up)"
+                )
+                self._release_held_shortcut(action_id)
+            except Exception as exc:
+                print(f"[Engine] hold_up_handler EXCEPTION for {action_id}: {exc}")
+                import traceback; traceback.print_exc()
+        return handler
+
+    def _press_held_shortcut(self, action_id):
+        # A repeated DOWN without an UP (lost release) restarts the hold.
+        self._release_held_shortcut(action_id)
+        hold_action_press(action_id)
+
+        def _safety_release():
+            print(f"[Engine] SAFETY RELEASE fired for {action_id} (UP never received)")
+            self._release_held_shortcut(action_id)
+
+        timer = threading.Timer(20.0, _safety_release)
+        timer.daemon = True
+        self._held_shortcuts[action_id] = timer
+        timer.start()
+
+    def _release_held_shortcut(self, action_id):
+        timer = self._held_shortcuts.pop(action_id, None)
+        if timer is None:
+            return  # not held, or already let go by the safety timer
+        timer.cancel()
+        hold_action_release(action_id)
+
+    def _release_held_shortcuts(self):
+        for action_id in list(self._held_shortcuts):
+            self._release_held_shortcut(action_id)
 
     def _make_mouse_up_handler(self, action_id):
         def handler(event):
@@ -1633,6 +1721,7 @@ class Engine:
         self._smart_shift_read_cb = cb
 
     def stop(self):
+        self._release_held_shortcuts()
         if self._ring:
             self._ring.shutdown()
             self._ring = None

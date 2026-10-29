@@ -461,17 +461,18 @@ Item {
         for (var i = 0; i < actions.length; i++)
             if (actions[i].id === actionId) return i
         // Custom shortcut: point to the __custom__ sentinel at the end
-        if (actionId.startsWith("custom:")) return actions.length - 1
+        if (isCustomAction(actionId)) return actions.length - 1
         return 0
     }
 
     function customLabel(actionId) {
-        if (!actionId.startsWith("custom:")) return ""
+        if (!isCustomAction(actionId)) return ""
         return backend.actionLabelFor(actionId)
     }
 
+    // "custom:" taps the shortcut; "hold:" keeps it pressed with the button.
     function isCustomAction(actionId) {
-        return actionId.startsWith("custom:")
+        return actionId.startsWith("custom:") || actionId.startsWith("hold:")
     }
 
     function gestureSummary(key) {
@@ -1416,7 +1417,8 @@ Item {
                                     onActivated: function(index) {
                                         var aid = backend.allActions[index].id
                                         if (aid === "__custom__") {
-                                            keyCaptureDialog.open(selectedProfile, selectedButton)
+                                            keyCaptureDialog.open(selectedProfile, selectedButton,
+                                                                  backend.isHoldAction(swipeTapActionId))
                                             return
                                         }
                                         backend.setProfileMapping(selectedProfile, selectedButton, aid)
@@ -1700,7 +1702,8 @@ Item {
                                                                : modelData.id === selectedActionId
                                                     onPicked: function(aid) {
                                                         if (aid === "__custom__") {
-                                                            keyCaptureDialog.open(selectedProfile, selectedButton)
+                                                            keyCaptureDialog.open(selectedProfile, selectedButton,
+                                                                                  backend.isHoldAction(selectedActionId))
                                                             return
                                                         }
                                                         backend.setProfileMapping(
@@ -2905,13 +2908,14 @@ Item {
     // ── Key capture dialog for custom shortcuts ──────────────
     KeyCaptureDialog {
         id: keyCaptureDialog
-        onCaptured: function(comboString) {
+        onCaptured: function(comboString, hold) {
+            var actionId = (hold ? "hold:" : "custom:") + comboString
             backend.setProfileMapping(
                 keyCaptureDialog.targetProfile,
                 keyCaptureDialog.targetButton,
-                "custom:" + comboString)
+                actionId)
             refreshSelectedProfileMappings()
-            selectedActionId = "custom:" + comboString
+            selectedActionId = actionId
         }
     }
 }

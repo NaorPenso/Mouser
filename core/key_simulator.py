@@ -15,22 +15,49 @@ from core import key_registry
 # Custom shortcut helpers (shared across platforms)
 # ==================================================================
 
+CUSTOM_ACTION_PREFIX = "custom:"   # tapped on press
+HOLD_ACTION_PREFIX = "hold:"       # pressed on button down, released on button up
+_CUSTOM_ACTION_PREFIXES = (CUSTOM_ACTION_PREFIX, HOLD_ACTION_PREFIX)
+
+
+def is_custom_action(action_id):
+    """True for a user-defined shortcut, tapped (``custom:``) or held (``hold:``)."""
+    return isinstance(action_id, str) and action_id.startswith(_CUSTOM_ACTION_PREFIXES)
+
+
+def is_hold_action(action_id):
+    """True for a custom shortcut that stays pressed while its button is held."""
+    return isinstance(action_id, str) and action_id.startswith(HOLD_ACTION_PREFIX)
+
+
+def custom_combo_text(action_id):
+    """Strip the ``custom:`` / ``hold:`` prefix, leaving e.g. ``ctrl+shift+a``."""
+    for prefix in _CUSTOM_ACTION_PREFIXES:
+        if action_id.startswith(prefix):
+            return action_id[len(prefix):]
+    return action_id
+
+
 def custom_action_label(action_id, platform_name=None):
-    """Convert 'custom:ctrl+shift+a' → 'Ctrl + Shift + A'."""
+    """Convert 'custom:ctrl+shift+a' → 'Ctrl + Shift + A'.
+
+    A held shortcut ('hold:...') gets a ' (Hold)' suffix so the UI can tell
+    the two apart."""
     platform_name = platform_name or sys.platform
-    if not action_id.startswith("custom:"):
+    if not is_custom_action(action_id):
         return action_id
+    combo = custom_combo_text(action_id)
     try:
-        parts = key_registry.parse_shortcut_text(
-            action_id[7:],
-            allow_modifier_only=True,
-        )
+        parts = key_registry.parse_shortcut_text(combo, allow_modifier_only=True)
     except key_registry.ShortcutParseError:
-        parts = [part for part in action_id[7:].split("+") if part]
-    return " + ".join(
+        parts = [part for part in combo.split("+") if part]
+    label = " + ".join(
         _pretty_custom_key_name(p, platform_name=platform_name)
         for p in parts
     )
+    if is_hold_action(action_id):
+        label += " (Hold)"
+    return label
 
 
 def valid_custom_key_names():
@@ -127,12 +154,12 @@ def _pretty_custom_key_name(name, platform_name=None):
 
 
 def _parse_custom_combo(action_id, key_name_to_code):
-    """Parse 'custom:ctrl+a' → list of platform key codes using given mapping."""
-    if not action_id.startswith("custom:"):
+    """Parse 'custom:ctrl+a' / 'hold:ctrl+a' → list of platform key codes."""
+    if not is_custom_action(action_id):
         return None
     try:
         parts = key_registry.parse_shortcut_text(
-            action_id[7:],
+            custom_combo_text(action_id),
             allow_modifier_only=True,
         )
     except key_registry.ShortcutParseError as exc:
@@ -386,16 +413,31 @@ if sys.platform == "win32":
         inp.union.ki.dwExtraInfo = ctypes.pointer(c_ulong(0))
         return inp
 
-    def send_key_combo(keys, hold_ms=50):
+    def _key_inputs(keys, release=False):
         inputs = []
-        for vk in keys:
+        for vk in (reversed(keys) if release else keys):
             flags = KEYEVENTF_EXTENDEDKEY if _is_extended(vk) else 0
+            if release:
+                flags |= KEYEVENTF_KEYUP
             inputs.append(_make_key_input(vk, flags))
-        for vk in reversed(keys):
-            flags = KEYEVENTF_KEYUP | (KEYEVENTF_EXTENDEDKEY if _is_extended(vk) else 0)
-            inputs.append(_make_key_input(vk, flags))
+        return inputs
+
+    def _send_key_inputs(inputs):
+        if not inputs:
+            return
         arr = (INPUT * len(inputs))(*inputs)
         SendInput(len(inputs), arr, sizeof(INPUT))
+
+    def press_key_combo(keys):
+        """Hold a combination of virtual keys down until release_key_combo."""
+        _send_key_inputs(_key_inputs(keys))
+
+    def release_key_combo(keys):
+        _send_key_inputs(_key_inputs(keys, release=True))
+
+    def send_key_combo(keys, hold_ms=50):
+        # One SendInput batch keeps the chord atomic for the receiving app.
+        _send_key_inputs(_key_inputs(keys) + _key_inputs(keys, release=True))
 
     def send_key_press(vk):
         send_key_combo([vk])
@@ -677,7 +719,7 @@ if sys.platform == "win32":
     def execute_action(action_id):
         try:
             print(f"[KeySimulator] execute_action({action_id})")
-            if action_id.startswith("custom:"):
+            if is_custom_action(action_id):
                 keys = _parse_custom_combo(action_id, _KEY_NAME_TO_CODE)
                 if keys:
                     send_key_combo(keys)
@@ -906,30 +948,42 @@ elif sys.platform == "darwin":
         kVK_Control: Quartz.kCGEventFlagMaskControl if _QUARTZ_OK else 0,
     }
 
-    @_autoreleased
-    def send_key_combo(keys, hold_ms=50):
-        """Press and release a combination of CGKeyCodes."""
-        if not _QUARTZ_OK:
-            return
-        # Compute modifier flags
+    def _modifier_flags(keys):
         flags = 0
         for k in keys:
             flags |= _MOD_FLAGS.get(k, 0)
+        return flags
 
-        # Press all
+    @_autoreleased
+    def press_key_combo(keys):
+        """Hold a combination of CGKeyCodes down until release_key_combo."""
+        if not _QUARTZ_OK:
+            return
+        flags = _modifier_flags(keys)
         for k in keys:
             ev = Quartz.CGEventCreateKeyboardEvent(None, k, True)
             if flags:
                 Quartz.CGEventSetFlags(ev, flags)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, ev)
 
-        if hold_ms:
-            time.sleep(hold_ms / 1000.0)
-
-        # Release in reverse
+    @_autoreleased
+    def release_key_combo(keys):
+        """Release keys held by press_key_combo, in reverse order."""
+        if not _QUARTZ_OK:
+            return
         for k in reversed(keys):
             ev = Quartz.CGEventCreateKeyboardEvent(None, k, False)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, ev)
+
+    @_autoreleased
+    def send_key_combo(keys, hold_ms=50):
+        """Press and release a combination of CGKeyCodes."""
+        if not _QUARTZ_OK:
+            return
+        press_key_combo(keys)
+        if hold_ms:
+            time.sleep(hold_ms / 1000.0)
+        release_key_combo(keys)
 
     def send_key_press(vk):
         send_key_combo([vk])
@@ -1358,7 +1412,7 @@ elif sys.platform == "darwin":
 
     @_autoreleased
     def execute_action(action_id):
-        if action_id.startswith("custom:"):
+        if is_custom_action(action_id):
             keys = _parse_custom_combo(action_id, _KEY_NAME_TO_CODE)
             if keys:
                 send_key_combo(keys)
@@ -1511,18 +1565,30 @@ elif sys.platform == "linux":
                 print(f"[KeySimulator] Failed to create virtual keyboard: {e}")
             return None
 
-    def send_key_combo(keys, hold_ms=50):
+    def press_key_combo(keys):
+        """Hold a combination of evdev key codes down until release_key_combo."""
         kbd = _get_virtual_kbd()
         if not kbd:
             return
         for key in keys:
             kbd.write(EV_KEY, key, 1)
             kbd.syn()
-        if hold_ms:
-            time.sleep(hold_ms / 1000.0)
+
+    def release_key_combo(keys):
+        kbd = _get_virtual_kbd()
+        if not kbd:
+            return
         for key in reversed(keys):
             kbd.write(EV_KEY, key, 0)
             kbd.syn()
+
+    def send_key_combo(keys, hold_ms=50):
+        if not _get_virtual_kbd():
+            return
+        press_key_combo(keys)
+        if hold_ms:
+            time.sleep(hold_ms / 1000.0)
+        release_key_combo(keys)
 
     def send_key_press(vk):
         send_key_combo([vk])
@@ -1820,7 +1886,7 @@ elif sys.platform == "linux":
     _ALL_KEY_CODES = sorted(set(_ALL_KEY_CODES) | set(_KEY_NAME_TO_CODE.values()))
 
     def execute_action(action_id):
-        if action_id.startswith("custom:"):
+        if is_custom_action(action_id):
             keys = _parse_custom_combo(action_id, _KEY_NAME_TO_CODE)
             if keys:
                 send_key_combo(keys)
@@ -1845,7 +1911,11 @@ else:
     MOUSEEVENTF_WHEEL  = 0x0800
     MOUSEEVENTF_HWHEEL = 0x01000
 
+    _KEY_NAME_TO_CODE = {}
+
     def inject_scroll(flags, delta): pass
+    def press_key_combo(keys): pass
+    def release_key_combo(keys): pass
     def send_key_combo(keys, hold_ms=50): pass
     def send_key_press(vk): pass
     def execute_action(action_id): pass
@@ -1880,3 +1950,25 @@ else:
             "category": "Other",
         },
     }
+
+
+# ==================================================================
+# Held custom shortcuts (shared across platforms)
+# ==================================================================
+
+def hold_action_press(action_id):
+    """Press the keys of a ``hold:`` shortcut and leave them down.
+
+    Pair with :func:`hold_action_release` on the button's release event. The
+    engine owns the pairing (and a safety timer) so a lost release never
+    leaves a modifier stuck."""
+    keys = _parse_custom_combo(action_id, _KEY_NAME_TO_CODE)
+    if keys:
+        press_key_combo(keys)
+
+
+def hold_action_release(action_id):
+    """Release the keys pressed by :func:`hold_action_press`."""
+    keys = _parse_custom_combo(action_id, _KEY_NAME_TO_CODE)
+    if keys:
+        release_key_combo(keys)

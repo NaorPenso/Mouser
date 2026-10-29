@@ -712,3 +712,131 @@ class WheelInvertConnectThreadingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _RecordingMouseHook(_FakeMouseHook):
+    """Fake hook that remembers what the engine wires so tests can fire the
+    registered callbacks like the real HID / OS layer would."""
+
+    def __init__(self):
+        super().__init__()
+        self.blocked = set()
+        self.handlers = {}
+
+    def block(self, event_type):
+        self.blocked.add(event_type)
+
+    def register(self, event_type, callback):
+        self.handlers.setdefault(event_type, []).append(callback)
+
+    def reset_bindings(self):
+        self.blocked.clear()
+        self.handlers.clear()
+
+    def fire(self, event_type):
+        for cb in self.handlers.get(event_type, []):
+            cb(MouseEvent(event_type))
+
+
+class HoldShortcutEngineTests(unittest.TestCase):
+    """End to end through the engine: a ``hold:`` mapping presses the combo
+    on button down and releases it on button up, for both OS-level buttons
+    (Back / Forward) and the HID-diverted Sense Panel."""
+
+    def _make_engine(self, mappings):
+        from core.engine import Engine
+
+        cfg = copy.deepcopy(DEFAULT_CONFIG)
+        cfg["profiles"]["default"]["mappings"].update(mappings)
+        hook = _RecordingMouseHook()
+        with (
+            patch("core.engine.MouseHook", lambda: hook),
+            patch("core.engine.AppDetector", _FakeAppDetector),
+            patch("core.engine.load_config", return_value=cfg),
+        ):
+            engine = Engine()
+        return engine, hook
+
+    def test_sense_panel_hold_presses_on_down_and_releases_on_up(self):
+        engine, hook = self._make_engine({"actions_ring": "hold:alt+grave"})
+        self.assertIn("sense_click", hook.blocked)
+        self.assertIn("sense_button_down", hook.blocked)
+        self.assertIn("sense_button_up", hook.blocked)
+        with (
+            patch("core.engine.hold_action_press") as press,
+            patch("core.engine.hold_action_release") as release,
+            patch("core.engine.execute_action") as execute,
+            patch("core.engine.threading.Timer"),
+        ):
+            hook.fire("sense_button_down")
+            press.assert_called_once_with("hold:alt+grave")
+            release.assert_not_called()
+            hook.fire("sense_click")
+            hook.fire("sense_button_up")
+            release.assert_called_once_with("hold:alt+grave")
+        execute.assert_not_called()
+
+    def test_back_button_hold_uses_its_down_and_up_events(self):
+        engine, hook = self._make_engine({"xbutton1": "hold:ctrl+shift+a"})
+        with (
+            patch("core.engine.hold_action_press") as press,
+            patch("core.engine.hold_action_release") as release,
+            patch("core.engine.threading.Timer"),
+        ):
+            hook.fire("xbutton1_down")
+            hook.fire("xbutton1_up")
+        press.assert_called_once_with("hold:ctrl+shift+a")
+        release.assert_called_once_with("hold:ctrl+shift+a")
+
+    def test_single_fire_source_taps_the_hold_shortcut(self):
+        engine, hook = self._make_engine({"gesture_left": "hold:ctrl+a"})
+        with (
+            patch("core.engine.execute_action") as execute,
+            patch("core.engine.hold_action_press") as press,
+        ):
+            hook.fire("gesture_swipe_left")
+        execute.assert_called_once_with("hold:ctrl+a")
+        press.assert_not_called()
+
+    def test_stop_releases_a_shortcut_that_is_still_held(self):
+        engine, hook = self._make_engine({"xbutton2": "hold:alt+tab"})
+        with (
+            patch("core.engine.hold_action_press"),
+            patch("core.engine.hold_action_release") as release,
+            patch("core.engine.threading.Timer"),
+        ):
+            hook.fire("xbutton2_down")
+            engine.stop()
+            release.assert_called_once_with("hold:alt+tab")
+            # Nothing left to release on a second stop.
+            engine.stop()
+            release.assert_called_once()
+
+    def test_reload_releases_held_keys_before_rewiring(self):
+        engine, hook = self._make_engine({"xbutton2": "hold:alt+tab"})
+        with (
+            patch("core.engine.hold_action_press"),
+            patch("core.engine.hold_action_release") as release,
+            patch("core.engine.threading.Timer"),
+            patch("core.engine.load_config", return_value=engine.cfg),
+        ):
+            hook.fire("xbutton2_down")
+            engine.reload_mappings()
+        release.assert_called_once_with("hold:alt+tab")
+
+    def test_safety_timer_releases_when_up_never_arrives(self):
+        engine, hook = self._make_engine({"xbutton1": "hold:ctrl+a"})
+        with (
+            patch("core.engine.hold_action_press"),
+            patch("core.engine.hold_action_release") as release,
+            patch("core.engine.threading.Timer") as timer,
+        ):
+            hook.fire("xbutton1_down")
+            timer.assert_called_once()
+            delay, fire_release = timer.call_args[0][:2]
+            self.assertGreaterEqual(delay, 5.0)
+            fire_release()
+            release.assert_called_once_with("hold:ctrl+a")
+            # The safety release already let go; the late UP must not double-release.
+            hook.fire("xbutton1_up")
+            release.assert_called_once()

@@ -245,6 +245,8 @@ _TRANSLATIONS = {
         "key_capture.error.unsupported": "Shortcut is not supported.",
         "key_capture.cancel": "Cancel",
         "key_capture.confirm": "Confirm",
+        "key_capture.hold_label": "Hold while the button is pressed",
+        "key_capture.hold_hint": "Keeps the keys down until you release the mouse button, for push-to-talk style shortcuts.",
 
         # System tray (used from Python)
         "tray.open_settings": "Open Settings",
@@ -513,6 +515,8 @@ _TRANSLATIONS = {
         "key_capture.error.unsupported": "\u65e0\u6cd5\u4f7f\u7528\u8fd9\u4e2a\u5feb\u6377\u952e\u3002",
         "key_capture.cancel": "\u53d6\u6d88",
         "key_capture.confirm": "\u786e\u8ba4",
+        "key_capture.hold_label": "\u6309\u4f4f\u9f20\u6807\u6309\u952e\u65f6\u4fdd\u6301\u6309\u4e0b",
+        "key_capture.hold_hint": "\u9f20\u6807\u6309\u952e\u677e\u5f00\u524d\u4e00\u76f4\u6309\u4f4f\u8fd9\u4e9b\u6309\u952e\uff0c\u9002\u7528\u4e8e\u6309\u4f4f\u8bf4\u8bdd\u7c7b\u5feb\u6377\u952e\u3002",
 
         "tray.open_settings": "\u6253\u5f00\u8bbe\u7f6e",
         "tray.disable_remapping": "\u7981\u7528\u6309\u952e\u91cd\u6620\u5c04",
@@ -775,6 +779,8 @@ _TRANSLATIONS = {
         "key_capture.error.unsupported": "\u7121\u6cd5\u4f7f\u7528\u6b64\u5feb\u901f\u9375\u3002",
         "key_capture.cancel": "\u53d6\u6d88",
         "key_capture.confirm": "\u78ba\u8a8d",
+        "key_capture.hold_label": "\u6309\u4f4f\u6ed1\u9f20\u6309\u9375\u6642\u4fdd\u6301\u6309\u4e0b",
+        "key_capture.hold_hint": "\u6ed1\u9f20\u6309\u9375\u653e\u958b\u524d\u4e00\u76f4\u6309\u4f4f\u9019\u4e9b\u6309\u9375\uff0c\u9069\u7528\u65bc\u6309\u4f4f\u8aaa\u8a71\u985e\u5feb\u901f\u9375\u3002",
 
         "tray.open_settings": "\u958b\u555f\u8a2d\u5b9a",
         "tray.disable_remapping": "\u505c\u7528\u6309\u9375\u91cd\u65b0\u5c0d\u6620",

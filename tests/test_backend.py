@@ -1623,5 +1623,33 @@ class BackendListPropertyMemoizationTests(unittest.TestCase):
         self.assertIs(backend.knownApps, first)
 
 
+class BackendHoldShortcutTests(unittest.TestCase):
+    def _make_backend(self):
+        _ensure_qapp()
+        with (
+            patch("ui.backend.load_config", return_value=copy.deepcopy(DEFAULT_CONFIG)),
+            patch("ui.backend.save_config"),
+            patch("ui.backend.supports_login_startup", return_value=False),
+        ):
+            return Backend(engine=_FakeEngine())
+
+    def test_is_hold_action_slot(self):
+        backend = self._make_backend()
+        self.assertTrue(backend.isHoldAction("hold:alt+grave"))
+        self.assertFalse(backend.isHoldAction("custom:alt+grave"))
+        self.assertFalse(backend.isHoldAction("copy"))
+
+    def test_button_supports_hold_action_slot(self):
+        backend = self._make_backend()
+        self.assertTrue(backend.buttonSupportsHoldAction("actions_ring"))
+        self.assertTrue(backend.buttonSupportsHoldAction("xbutton1"))
+        self.assertFalse(backend.buttonSupportsHoldAction("hscroll_left"))
+        self.assertFalse(backend.buttonSupportsHoldAction(""))
+
+    def test_hold_action_label_marks_it_as_held(self):
+        backend = self._make_backend()
+        self.assertTrue(backend.actionLabelFor("hold:ctrl+a").endswith("(Hold)"))
+
+
 if __name__ == "__main__":
     unittest.main()

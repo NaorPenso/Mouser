@@ -3,7 +3,8 @@ import QtQuick.Controls.Material
 import "Theme.js" as Theme
 
 /*  Modal dialog for capturing a custom keyboard shortcut.
-    Emits captured(comboString) with e.g. "ctrl+shift+f5".
+    Emits captured(comboString, hold) with e.g. "ctrl+shift+f5"; hold is true
+    when the keys should stay down for as long as the mouse button is held.
 
     Two input modes, deliberately kept apart:
       * recording — every key press is recorded, the field is read-only.
@@ -19,6 +20,9 @@ Rectangle {
 
     property string targetButton: ""
     property string targetProfile: ""
+    // Hold mode: only offered for buttons that report a release.
+    property bool holdSupported: false
+    property bool holdMode: false
     property bool recording: false
     property bool _valid: false
     property string _preview: ""
@@ -32,7 +36,7 @@ Rectangle {
 
     readonly property bool hostActive: Qt.application.state === Qt.ApplicationActive
 
-    signal captured(string comboString)
+    signal captured(string comboString, bool hold)
     signal cancelled()
 
     visible: false
@@ -40,9 +44,11 @@ Rectangle {
     color: "#80000000"
     z: 100
 
-    function open(profile, button) {
+    function open(profile, button, hold) {
         targetProfile = profile
         targetButton = button
+        holdSupported = backend.buttonSupportsHoldAction(button)
+        holdMode = hold === true
         shortcutField.text = ""
         _valid = false
         _preview = ""
@@ -314,6 +320,34 @@ Rectangle {
                 }
             }
 
+            Column {
+                width: parent.width
+                spacing: 2
+                visible: dialog.holdSupported
+
+                CheckBox {
+                    id: holdToggle
+                    text: s["key_capture.hold_label"]
+                    checked: dialog.holdMode
+                    focusPolicy: Qt.NoFocus
+                    padding: 0
+                    font { family: uiState.fontFamily; pixelSize: 12 }
+                    Material.accent: dialog.theme.accent
+                    onToggled: {
+                        dialog.holdMode = checked
+                        shortcutField.forceActiveFocus()
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    text: s["key_capture.hold_hint"]
+                    wrapMode: Text.WordWrap
+                    font { family: uiState.fontFamily; pixelSize: 11 }
+                    color: dialog.theme.textDim
+                }
+            }
+
             Text {
                 text: dialog._pending !== "" ? dialog._pending : dialog._preview
                 width: parent.width
@@ -386,7 +420,7 @@ Rectangle {
                                                    : Qt.ArrowCursor
                         onClicked: {
                             if (!dialog._valid) return
-                            dialog.captured(dialog._canonical)
+                            dialog.captured(dialog._canonical, dialog.holdSupported && dialog.holdMode)
                             dialog.close()
                         }
                     }

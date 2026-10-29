@@ -138,3 +138,11 @@ class AccessibilityLocaleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HoldShortcutStringsTests(unittest.TestCase):
+    def test_hold_toggle_strings_exist_in_all_locales(self):
+        required = {"key_capture.hold_label", "key_capture.hold_hint"}
+        for locale, strings in _TRANSLATIONS.items():
+            with self.subTest(locale=locale):
+                self.assertTrue(required.issubset(strings))

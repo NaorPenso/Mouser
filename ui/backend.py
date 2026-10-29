@@ -18,6 +18,7 @@ from PySide6.QtCore import QCoreApplication, QMetaObject, QObject, Property, QTi
 
 from core.accessibility import is_process_trusted
 from core.config import (
+    button_supports_hold,
     BUTTON_NAMES, load_config, save_config, get_active_mappings,
     PROFILE_BUTTON_NAMES, set_mapping, create_profile, delete_profile,
     get_icon_for_exe, HAPTIC_ELIGIBLE_ACTIONS, set_action_haptic,
@@ -43,6 +44,8 @@ from core.logi_devices import (
 from core.key_simulator import (
     ACTIONS,
     custom_action_label,
+    is_custom_action,
+    is_hold_action,
     normalize_captured_shortcut_parts,
     valid_custom_key_names,
 )
@@ -78,7 +81,7 @@ from ui.screenshot_common import screenshot_file_path, screenshot_file_paths, sc
 
 
 def _action_label(action_id):
-    if action_id.startswith("custom:"):
+    if is_custom_action(action_id):
         return custom_action_label(action_id)
     if action_id == GESTURE_SWIPE_ACTION:
         return "Gesture Swipe"
@@ -1994,6 +1997,16 @@ class Backend(QObject):
     @Slot(str, result=str)
     def actionLabelFor(self, actionId):
         return _action_label(actionId)
+
+    @Slot(str, result=bool)
+    def isHoldAction(self, actionId):
+        """True for a custom shortcut held down while its button is pressed."""
+        return is_hold_action(actionId or "")
+
+    @Slot(str, result=bool)
+    def buttonSupportsHoldAction(self, button):
+        """True when the button reports a release, so a shortcut can be held."""
+        return button_supports_hold(button or "")
 
     @Slot(int, int, str, result=str)
     def shortcutComboFromQtEvent(self, key, modifiers, text):
