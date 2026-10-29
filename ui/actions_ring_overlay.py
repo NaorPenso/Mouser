@@ -84,16 +84,16 @@ _INNER_GAP = 4
 _GAP_DEG = 2.5
 _MARGIN = 50
 
-# ── glassmorphism palette ───────────────────────────────────────────
+# ── glassmorphism palette (accent = HIG systemBlue, see ui/qml/Theme.js) ──
 
 _COLOR_SECTOR = QColor(22, 22, 26, 150)
-_COLOR_SECTOR_HL_CENTER = QColor(0, 212, 170, 70)
-_COLOR_SECTOR_HL_EDGE = QColor(0, 212, 170, 22)
+_COLOR_SECTOR_HL_CENTER = QColor(10, 132, 255, 70)
+_COLOR_SECTOR_HL_EDGE = QColor(10, 132, 255, 22)
 
 _COLOR_GLASS_BORDER = QColor(255, 255, 255, 48)
 
-_COLOR_OUTER_GLOW_CENTER = QColor(0, 212, 170, 28)
-_COLOR_OUTER_GLOW_EDGE = QColor(0, 212, 170, 0)
+_COLOR_OUTER_GLOW_CENTER = QColor(10, 132, 255, 28)
+_COLOR_OUTER_GLOW_EDGE = QColor(10, 132, 255, 0)
 
 _COLOR_DEAD_ZONE = QColor(18, 18, 22, 210)
 _COLOR_DEAD_ZONE_BORDER = QColor(255, 255, 255, 30)

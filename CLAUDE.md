@@ -40,7 +40,19 @@ contributor working here. They are enforced where possible by
 5. **Least privilege.** Do not request new OS permissions, do not add
    `shell=True` subprocess calls, do not add keyboard hooks outside the
    existing shortcut recorder, and do not log typed text or key names.
-6. **Upstream sync lifecycle.** Pull upstream with `scripts/sync-upstream.sh`
+   The PyInstaller specs exclude the network-capable stdlib modules
+   (`ssl`, `http`, `urllib.request`, mail and ftp clients, `webbrowser`)
+   so the frozen app cannot import them; keep those excludes.
+6. **English only.** The UI ships a single English string table. Do not
+   add translations, language switchers, or non-English READMEs; strip
+   them from upstream merges. `tests/test_english_only.py` enforces it.
+7. **Apple-native look.** Colors come only from `ui/qml/Theme.js`, which
+   holds the Apple Human Interface Guidelines palette (system blue accent,
+   HIG neutrals and semantic colors, light and dark). Text uses the system
+   UI font through `uiState.fontFamily`. New UI must use theme tokens, not
+   literal colors; the Actions Ring overlay mirrors the accent in QColor
+   form. `tests/test_theme.py` pins this.
+8. **Upstream sync lifecycle.** Pull upstream with `scripts/sync-upstream.sh`
    on a cadence you choose (monthly is reasonable). Resolve conflicts in
    favor of these rules, then `scripts/verify.sh` must pass before the sync
    branch merges into `fork`. After merging, rebuild and reinstall with

@@ -356,7 +356,7 @@ Rectangle {
                 font { family: uiState.fontFamily; pixelSize: 12 }
                 color: dialog._pending !== ""
                        ? dialog.theme.textSecondary
-                       : (dialog._valid ? "#4caf50" : "#f44336")
+                       : (dialog._valid ? dialog.theme.success : dialog.theme.danger)
                 visible: dialog._pending !== "" || dialog._preview !== ""
             }
 
@@ -365,7 +365,7 @@ Rectangle {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 font { family: uiState.fontFamily; pixelSize: 11 }
-                color: "#ffb74d"
+                color: dialog.theme.warning
                 visible: dialog._warning !== ""
             }
 

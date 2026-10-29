@@ -887,8 +887,8 @@ Item {
                                         name: backend.batteryCharging ? "battery-charging" : "battery-high"
                                         iconColor: {
                                             var lvl = backend.batteryLevel
-                                            if (lvl <= 20) return "#e05555"
-                                            if (lvl <= 40) return "#e09045"
+                                            if (lvl <= 20) return "#ff3b30"
+                                            if (lvl <= 40) return "#ff9500"
                                             return theme.accent
                                         }
                                     }
@@ -898,8 +898,8 @@ Item {
                                         font { family: uiState.fontFamily; pixelSize: 11; bold: true }
                                         color: {
                                             var lvl = backend.batteryLevel
-                                            if (lvl <= 20) return "#e05555"
-                                            if (lvl <= 40) return "#e09045"
+                                            if (lvl <= 20) return "#ff3b30"
+                                            if (lvl <= 40) return "#ff9500"
                                             return theme.accent
                                         }
                                     }
@@ -923,7 +923,7 @@ Item {
                                     Rectangle {
                                         width: 7; height: 7; radius: 4
                                         color: backend.mouseConnected
-                                               ? theme.accent : "#e05555"
+                                               ? theme.accent : "#ff3b30"
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Text {
@@ -934,7 +934,7 @@ Item {
                                               : s["mouse.not_connected"]
                                         font { family: uiState.fontFamily; pixelSize: 11 }
                                         color: backend.mouseConnected
-                                               ? theme.accent : "#e05555"
+                                               ? theme.accent : "#ff3b30"
                                     }
                                 }
                             }
@@ -964,7 +964,7 @@ Item {
                                         }
                                         font { family: uiState.fontFamily; pixelSize: 10 }
                                         color: backend.deviceLayoutOverrideKey !== ""
-                                               ? "#d4a017" : theme.textSecondary
+                                               ? "#ff9500" : theme.textSecondary
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Text {
@@ -1072,14 +1072,14 @@ Item {
                                             width: 8
                                             height: 8
                                             radius: 4
-                                            color: "#e05555"
+                                            color: "#ff3b30"
                                             anchors.verticalCenter: parent.verticalCenter
                                         }
 
                                         Text {
                                             text: s["mouse.waiting_for_connection"]
                                             font { family: uiState.fontFamily; pixelSize: 11; bold: true }
-                                            color: "#e05555"
+                                            color: "#ff3b30"
                                         }
                                     }
                                 }
@@ -1865,7 +1865,7 @@ Item {
                             Rectangle {
                                 id: dpiPresetsCard
                                 property int activeSlot: 0
-                                readonly property var slotColors: ["#e8d44d", "#5da5e8", "#e8943a", "#e05daa"]
+                                readonly property var slotColors: ["#ffcc00", "#007aff", "#ff9500", "#ff2d55"]
                                 visible: selectedActionId === "cycle_dpi"
                                 width: parent.width
                                 height: dpiPresetsCol.implicitHeight + 28
@@ -2138,7 +2138,7 @@ Item {
                                 Switch {
                                     checked: backend.recordMode
                                     text: checked ? s["mouse.rec"] : s["mouse.record"]
-                                    Material.accent: "#e46f4e"
+                                    Material.accent: "#ff3b30"
                                     onToggled: backend.setRecordMode(checked)
                                 }
 
@@ -2262,7 +2262,7 @@ Item {
                                                 anchors.centerIn: parent
                                                 text: backend.gestureActive ? s["mouse.held"] : s["mouse.idle"]
                                                 font { family: uiState.fontFamily; pixelSize: 11; bold: true }
-                                                color: backend.gestureActive ? "#f39c6b" : theme.textSecondary
+                                                color: backend.gestureActive ? "#ff9500" : theme.textSecondary
                                             }
                                         }
 

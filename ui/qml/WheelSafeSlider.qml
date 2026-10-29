@@ -7,9 +7,9 @@ Item {
     property real to: 1
     property real stepSize: 0
     property real value: from
-    property color accentColor: "#00d4aa"
-    property color accentDimColor: "#0d2e26"
-    property color trackColor: "#263246"
+    property color accentColor: "#007aff"
+    property color accentDimColor: "#e5f0ff"
+    property color trackColor: "#d2d2d7"
     readonly property bool pressed: dragArea.pressed
     readonly property real normalizedPosition: {
         var span = to - from
