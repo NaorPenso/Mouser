@@ -43,7 +43,7 @@ setup_logging()
 
 # Set Material theme before any Qt imports
 os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
-os.environ["QT_QUICK_CONTROLS_MATERIAL_ACCENT"] = "#00d4aa"
+os.environ["QT_QUICK_CONTROLS_MATERIAL_ACCENT"] = "#007aff"
 
 _t1 = _time.perf_counter()
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QFileIconProvider, QMessageBox
@@ -62,7 +62,7 @@ os.environ.setdefault("QML2_IMPORT_PATH", os.path.join(_pyside_dir, "qml"))
 os.environ.setdefault("QT_PLUGIN_PATH", os.path.join(_pyside_dir, "plugins"))
 
 _t3 = _time.perf_counter()
-from core.config import load_config, save_config
+from core.config import load_config
 from core.engine import Engine
 from core.hid_gesture import set_backend_preference as set_hid_backend_preference
 from core.accessibility import is_process_trusted
@@ -1138,8 +1138,7 @@ def main():
     print(f"[Mouser] Launch path: {_runtime_launch_path()}")
 
     # ── Locale Manager ─────────────────────────────────────────
-    initial_lang = cfg_settings.get("language", "en")
-    locale_mgr = LocaleManager(language=initial_lang)
+    locale_mgr = LocaleManager()
 
     # macOS: allow Ctrl+C in terminal to quit the app
     signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -1377,17 +1376,7 @@ def main():
             locale_mgr.tr("tray.disable_remapping") if engine.enabled
             else locale_mgr.tr("tray.enable_remapping"))
 
-    def _save_language():
-        """Persist the selected language to config.json."""
-        try:
-            saved_cfg = load_config()
-            saved_cfg.setdefault("settings", {})["language"] = locale_mgr.language
-            save_config(saved_cfg)
-        except Exception as exc:
-            print(f"[Mouser] Failed to save language preference: {exc}")
-
     locale_mgr.languageChanged.connect(_update_tray_texts)
-    locale_mgr.languageChanged.connect(_save_language)
 
     tray.setContextMenu(tray_menu)
     tray.activated.connect(lambda reason: (

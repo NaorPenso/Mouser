@@ -55,12 +55,6 @@ class AccessibilityLocaleTests(unittest.TestCase):
         "scroll.ignore_trackpad_desc",
         "scroll.smart_shift",
     })
-    ENGLISH_VALUES = frozenset({
-        "Close",
-        "Ignore trackpad",
-        "Only respond to mouse events, not trackpad or Magic Mouse",
-    })
-
     def test_required_accessibility_keys_present_in_all_locales(self):
         for locale, strings in _TRANSLATIONS.items():
             with self.subTest(locale=locale):
@@ -71,26 +65,6 @@ class AccessibilityLocaleTests(unittest.TestCase):
                         strings[key].strip(),
                         f"{locale}.{key} is blank",
                     )
-
-    def test_chinese_locales_do_not_passthrough_english(self):
-        """Trackpad strings used to ship English text in the zh_CN and
-        zh_TW maps. Pin that they are now actually localized."""
-        for locale in ("zh_CN", "zh_TW"):
-            with self.subTest(locale=locale):
-                for key in (
-                    "scroll.ignore_trackpad",
-                    "scroll.ignore_trackpad_desc",
-                ):
-                    self.assertNotIn(
-                        _TRANSLATIONS[locale][key],
-                        self.ENGLISH_VALUES,
-                        f"{locale}.{key} still ships English",
-                    )
-                self.assertNotEqual(
-                    _TRANSLATIONS[locale]["scroll.smart_shift"],
-                    "SmartShift",
-                    f"{locale}.scroll.smart_shift still ships English",
-                )
 
 
 if __name__ == "__main__":

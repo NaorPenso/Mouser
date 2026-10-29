@@ -291,7 +291,6 @@ DEFAULT_CONFIG = {
         "appearance_mode": "system",
         "debug_mode": False,
         "device_layout_overrides": {},
-        "language": "en",
         "haptic_level": 2,          # 0=subtle, 1=low, 2=medium, 3=high
         "haptic_enabled": True,     # global haptic on/off
         "action_haptic": [],        # action IDs that fire haptic on press; empty = opt-in
@@ -742,7 +741,6 @@ def _migrate(cfg):
     cfg["settings"].setdefault("appearance_mode", "system")
     cfg["settings"].setdefault("debug_mode", False)
     cfg["settings"].setdefault("device_layout_overrides", {})
-    cfg["settings"].setdefault("language", "en")
     cfg["settings"].setdefault("ignore_trackpad", True)
     cfg["settings"].setdefault("scroll_force", 50)
     cfg["settings"].setdefault("screenshot_directory", "")
@@ -750,6 +748,8 @@ def _migrate(cfg):
     # were written by builds that still had it.
     cfg["settings"].pop("check_for_updates", None)
     cfg["settings"].pop("update_check_state", None)
+    # The UI is English only; drop the language switch written by older builds.
+    cfg["settings"].pop("language", None)
     cfg["settings"]["wheel_divert"] = coerce_wheel_divert_setting(
         cfg["settings"].get("wheel_divert", WHEEL_DIVERT_DEFAULT)
     )

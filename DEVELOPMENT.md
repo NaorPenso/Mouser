@@ -226,7 +226,7 @@ mouser/
 ├── packaging/linux/             # 69-mouser-logitech.rules + install-linux-permissions.sh
 ├── .github/workflows/
 │   └── ci.yml                   # CI checks (hashed install, audit, compile, tests, QML lint)
-├── README.md / README_CN.md / readme_mac_osx.md / CONTRIBUTING_DEVICES.md / DEVELOPMENT.md
+├── README.md / readme_mac_osx.md / CONTRIBUTING_DEVICES.md / DEVELOPMENT.md
 ├── requirements.txt
 │
 ├── core/                        # Backend logic
@@ -256,7 +256,7 @@ mouser/
 │
 ├── ui/                          # UI layer
 │   ├── backend.py               # QML ↔ Python bridge (QObject)
-│   ├── locale_manager.py        # en / zh_CN / zh_TW translations + button/action labels
+│   ├── locale_manager.py        # English UI string table + button/action labels
 │   └── qml/
 │       ├── Main.qml             # App shell (sidebar + page stack + tray toast)
 │       ├── MousePage.qml        # Merged mouse diagram + profile manager

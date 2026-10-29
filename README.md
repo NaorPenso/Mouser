@@ -4,8 +4,6 @@
   <img src="images/logo_icon.png" width="128" alt="Mouser logo" />
 </p>
 
-English | [中文文档](README_CN.md)
-
 A lightweight, open-source, fully local alternative to **Logitech Options+** for
 remapping Logitech HID++ mice. The current best experience is on the **MX Master**
 and **MX Anywhere** families, with detection and fallback UI support for additional
@@ -133,8 +131,7 @@ That's it. The app opens, drops a tray / menu-bar icon, and starts remapping imm
 
 ### Multi-language UI
 
-- **English / Simplified Chinese / Traditional Chinese** — switch instantly, no restart required.
-- Language preference is saved to `config.json` and restored on next launch.
+- This fork ships English only; the string table lives in `ui/locale_manager.py`.
 - Covers nav, mouse page, settings page, dialogs, system tray / menu bar, and permission prompts.
 
 ### Privacy first
@@ -370,7 +367,7 @@ Every bit helps keep the project going — thank you.
 - **[@awkure](https://github.com/awkure)** — cross-platform login startup (Windows registry + macOS LaunchAgent), single-instance guard, start-minimized option, and MX Master 4 detection.
 - **[@hieshima](https://github.com/hieshima)** — Linux support (evdev + HID++ + uinput), mode-shift mapping, Smart Shift toggle, custom keyboard shortcut support, Linux connection-state stabilization, and macOS CGEventTap reliability fixes (auto re-enable on timeout, trackpad scroll filtering).
 - **[@pavelzaichyk](https://github.com/pavelzaichyk)** — Next Tab / Previous Tab browser actions, persistent rotating log file storage, Smart Shift enhanced support (HID++ `0x2111`) with sensitivity control and scroll-mode sync.
-- **[@nellwhoami](https://github.com/nellwhoami)** — Multi-language UI system (English, Simplified Chinese, Traditional Chinese) and Page Up / Page Down / Home / End navigation actions.
+- **[@nellwhoami](https://github.com/nellwhoami)** — UI string table system and Page Up / Page Down / Home / End navigation actions.
 - **[@guilamu](https://github.com/guilamu)** — Mouse-to-mouse button remapping (left, right, middle, back, forward click) and HID++ stability fixes (stuck-button auto-release, auto-reconnect after consecutive timeouts, async dispatch queue for the Windows hook).
 - **[@vcanuel](https://github.com/vcanuel)** — Logi Bolt receiver support on macOS via the `hidapi` fallback path.
 - **[@farfromrefug](https://github.com/farfromrefug)** — smaller macOS bundle (Qt Quick Controls trim, QtDBus, Qt asset filtering).
