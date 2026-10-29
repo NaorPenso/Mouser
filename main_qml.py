@@ -43,7 +43,7 @@ setup_logging()
 
 # Set Material theme before any Qt imports
 os.environ["QT_QUICK_CONTROLS_STYLE"] = "Material"
-os.environ["QT_QUICK_CONTROLS_MATERIAL_ACCENT"] = "#007aff"
+os.environ["QT_QUICK_CONTROLS_MATERIAL_ACCENT"] = "#0063e1"
 
 _t1 = _time.perf_counter()
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QFileIconProvider, QMessageBox
@@ -67,7 +67,9 @@ from core.engine import Engine
 from core.hid_gesture import set_backend_preference as set_hid_backend_preference
 from core.accessibility import is_process_trusted
 from core.startup import linux_runtime_icon_path, sync_linux_icon_theme
-from core.version import APP_BUILD_MODE, APP_COMMIT_DISPLAY, APP_VERSION
+from core.version import (
+    APP_BUILD_MODE, APP_COMMIT_DISPLAY, APP_DISPLAY_VERSION, APP_EDITION, APP_VERSION,
+)
 from ui.backend import Backend
 from ui.locale_manager import LocaleManager
 _t4 = _time.perf_counter()
@@ -1133,7 +1135,7 @@ def main():
     _install_macos_dock_icon()
     ui_state = UiState(app)
 
-    print(f"[Mouser] Version: {APP_VERSION} ({APP_BUILD_MODE})")
+    print(f"[Mouser] Version: {APP_DISPLAY_VERSION} ({APP_BUILD_MODE})")
     print(f"[Mouser] Commit: {APP_COMMIT_DISPLAY}")
     print(f"[Mouser] Launch path: {_runtime_launch_path()}")
 
@@ -1218,6 +1220,7 @@ def main():
     qml_engine.rootContext().setContextProperty("lm", locale_mgr)
     qml_engine.rootContext().setContextProperty("launchHidden", launch_hidden)
     qml_engine.rootContext().setContextProperty("appVersion", APP_VERSION)
+    qml_engine.rootContext().setContextProperty("appEdition", APP_EDITION)
     qml_engine.rootContext().setContextProperty("appBuildMode", APP_BUILD_MODE)
     qml_engine.rootContext().setContextProperty("appCommit", APP_COMMIT_DISPLAY)
     qml_engine.rootContext().setContextProperty(

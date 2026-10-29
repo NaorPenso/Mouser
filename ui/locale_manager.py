@@ -242,6 +242,13 @@ _TRANSLATIONS = {
         "about.commit": "Commit",
         "about.launch_path": "Launch path",
         "about.close": "Close",
+        "about.ratmode_title": "What RatMode changes",
+        "about.ratmode_1": "No network: the release check, auto-updater and every HTTP or socket path are removed. The app never connects anywhere.",
+        "about.ratmode_2": "Hold shortcuts: a custom shortcut can stay pressed for as long as the button is held (long press) instead of a momentary tap. The MX Master 4 Sense Panel uses this for Wispr Flow push-to-talk.",
+        "about.ratmode_3": "English only: the Chinese locales, README and language switcher are gone.",
+        "about.ratmode_4": "Apple look: Human Interface Guidelines colors (macOS selection blue, HIG neutrals) and the system font.",
+        "about.ratmode_5": "Built from source only, with hash-pinned and audited dependencies; no release binaries.",
+        "about.ratmode_6": "Configuration as code: the recommended MX Master 4 setup ships in configs/mx4-ratmode.json.",
 
         # Language names
     },

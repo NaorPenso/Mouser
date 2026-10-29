@@ -10,6 +10,8 @@ import sys
 
 
 _DEFAULT_APP_VERSION = "3.7.3"
+# This fork's edition tag; shown next to the upstream version everywhere.
+APP_EDITION = "RatMode by Naor Penso"
 _BUILD_INFO_FILENAME = "mouser_build_info.json"
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -98,6 +100,8 @@ _APP_COMMIT_FULL = str(
     or os.environ.get("MOUSER_GIT_COMMIT", "")
     or _run_git(["rev-parse", "HEAD"])
 ).strip()
+APP_DISPLAY_VERSION = f"{APP_VERSION} - {APP_EDITION}"
+
 APP_COMMIT = _APP_COMMIT_FULL
 APP_COMMIT_SHORT = _APP_COMMIT_FULL[:12] if _APP_COMMIT_FULL else ""
 

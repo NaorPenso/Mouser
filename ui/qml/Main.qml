@@ -11,7 +11,7 @@ ApplicationWindow {
     height: 800
     minimumWidth: 920
     minimumHeight: 620
-    readonly property string versionLabel: "v" + appVersion
+    readonly property string versionLabel: "v" + appVersion + " - " + appEdition
     title: backend.mouseConnected
            ? "Mouser " + versionLabel + " — " + backend.deviceDisplayName
            : "Mouser " + versionLabel
@@ -98,7 +98,7 @@ ApplicationWindow {
                         // identically across light / dark themes so the
                         // brand stays recognisable regardless of system
                         // appearance, and distinguishes itself from the
-                        // teal-accented navigation items below.
+                        // accent-colored navigation items below.
                         width: 44
                         height: 44
                         radius: 14
@@ -143,7 +143,7 @@ ApplicationWindow {
                                 height: 46
                                 radius: 14
                                 color: root.currentPage === modelData.page
-                                       ? Qt.rgba(0, 0.83, 0.67, root.darkMode ? 0.14 : 0.16)
+                                       ? Qt.alpha(root.theme.accent, root.darkMode ? 0.14 : 0.16)
                                        : navMouse.containsMouse || navItem.activeFocus
                                          ? Qt.rgba(1, 1, 1, root.darkMode ? 0.06 : 0.22)
                                          : "transparent"
@@ -336,8 +336,8 @@ ApplicationWindow {
         modal: true
         focus: true
         title: ""
-        width: 500
-        height: 430
+        width: 560
+        height: Math.min(parent.height - 32, 700)
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
         padding: 0
@@ -468,7 +468,7 @@ ApplicationWindow {
                             spacing: 10
 
                             Text {
-                                text: root.versionLabel
+                                text: "v" + appVersion
                                 font { family: uiState.fontFamily; pixelSize: 28; bold: true }
                                 color: root.theme.textPrimary
                             }
@@ -493,9 +493,53 @@ ApplicationWindow {
                         }
 
                         Text {
+                            text: appEdition
+                            font { family: uiState.fontFamily; pixelSize: 15; bold: true }
+                            color: root.theme.accent
+                        }
+
+                        Text {
                             text: (lm.strings["about.commit"] || "Commit") + ": " + appCommit
                             font { family: root.monoFontFamily; pixelSize: 12 }
                             color: root.theme.textSecondary
+                        }
+                    }
+                }
+
+                // What this fork changes versus upstream Mouser.
+                Rectangle {
+                    width: parent.width
+                    height: ratModeColumn.implicitHeight + 36
+                    radius: 18
+                    color: theme.bgSubtle
+                    border.width: 1
+                    border.color: theme.border
+
+                    Column {
+                        id: ratModeColumn
+                        anchors {
+                            left: parent.left; right: parent.right; top: parent.top
+                            margins: 18
+                        }
+                        spacing: 6
+
+                        Text {
+                            text: lm.strings["about.ratmode_title"] || "What RatMode changes"
+                            font { family: uiState.fontFamily; pixelSize: 11; bold: true }
+                            color: theme.textSecondary
+                        }
+
+                        Repeater {
+                            model: ["about.ratmode_1", "about.ratmode_2", "about.ratmode_3",
+                                    "about.ratmode_4", "about.ratmode_5", "about.ratmode_6"]
+                            delegate: Text {
+                                required property string modelData
+                                width: ratModeColumn.width
+                                text: "\u2022  " + (lm.strings[modelData] || "")
+                                wrapMode: Text.WordWrap
+                                font { family: uiState.fontFamily; pixelSize: 12 }
+                                color: theme.textPrimary
+                            }
                         }
                     }
                 }
@@ -639,7 +683,7 @@ ApplicationWindow {
                 pixelSize: 12
                 bold: true
             }
-            color: root.theme.bgSidebar
+            color: root.theme.onAccent
         }
 
         Behavior on opacity { NumberAnimation { duration: 200 } }
