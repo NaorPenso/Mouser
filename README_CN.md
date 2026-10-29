@@ -282,7 +282,7 @@ pyinstaller Mouser-linux.spec --noconfirm
 
 </details>
 
-> **自动化发布：** 推送 `v*` 标签会触发 [`.github/workflows/release.yml`](.github/workflows/release.yml)，CI 会构建 Windows、macOS（Apple Silicon + Intel）、Linux 产物，并上传到对应的 GitHub Release。
+> **本分支不发布二进制文件。** 请使用 `scripts/install-macos.sh` 从源码构建；详见 [DEVELOPMENT.md](DEVELOPMENT.md) 的 Fork lifecycle 一节。
 
 项目结构、架构图、HID++ 手势检测、引擎与重连流程、调试用 CLI 选项（`--hid-backend=iokit|hidapi|auto`）、运行测试套件等开发者文档，请见 [DEVELOPMENT.md](DEVELOPMENT.md)（英文）。要新增设备支持，请见 [CONTRIBUTING_DEVICES.md](CONTRIBUTING_DEVICES.md)。
 

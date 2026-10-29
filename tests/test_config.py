@@ -61,8 +61,6 @@ class ConfigMigrationTests(unittest.TestCase):
         self.assertEqual(migrated["settings"]["device_layout_overrides"], {})
         self.assertTrue(migrated["settings"]["ignore_trackpad"])
         self.assertEqual(migrated["settings"]["screenshot_directory"], "")
-        self.assertTrue(migrated["settings"]["check_for_updates"])
-        self.assertEqual(migrated["settings"]["update_check_state"], {})
         self.assertFalse(migrated["settings"]["start_at_login"])
         self.assertNotIn("start_with_windows", migrated["settings"])
         # Ring activation lands on the Sense Panel (actions_ring), and the thumb
@@ -109,8 +107,6 @@ class ConfigMigrationTests(unittest.TestCase):
         self.assertEqual(migrated["settings"]["device_layout_overrides"], {})
         self.assertTrue(migrated["settings"]["ignore_trackpad"])
         self.assertEqual(migrated["settings"]["screenshot_directory"], "")
-        self.assertTrue(migrated["settings"]["check_for_updates"])
-        self.assertEqual(migrated["settings"]["update_check_state"], {})
         self.assertFalse(migrated["settings"]["start_at_login"])
         self.assertNotIn("start_with_windows", migrated["settings"])
 
@@ -187,8 +183,6 @@ class ConfigMigrationTests(unittest.TestCase):
         self.assertEqual(loaded["settings"]["device_layout_overrides"], {})
         self.assertTrue(loaded["settings"]["ignore_trackpad"])
         self.assertEqual(loaded["settings"]["screenshot_directory"], "")
-        self.assertTrue(loaded["settings"]["check_for_updates"])
-        self.assertEqual(loaded["settings"]["update_check_state"], {})
         self.assertEqual(loaded["profiles"]["default"]["mappings"]["middle"], "copy")
         self.assertEqual(
             loaded["profiles"]["default"]["mappings"]["xbutton1"], "mouse_back_click"
@@ -196,6 +190,38 @@ class ConfigMigrationTests(unittest.TestCase):
         self.assertEqual(
             loaded["profiles"]["default"]["mappings"]["gesture_left"], "none"
         )
+
+    def test_load_config_drops_removed_update_check_keys(self):
+        stale = {
+            "version": config.DEFAULT_CONFIG["version"],
+            "active_profile": "default",
+            "profiles": {
+                "default": {
+                    "label": "Default",
+                    "apps": [],
+                    "mappings": {},
+                }
+            },
+            "settings": {
+                "check_for_updates": True,
+                "update_check_state": {"etag": '"abc"', "last_check": 10.0},
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_file = Path(temp_dir) / "config.json"
+            config_file.write_text(json.dumps(stale), encoding="utf-8")
+
+            with (
+                patch.object(config, "CONFIG_DIR", temp_dir),
+                patch.object(config, "CONFIG_FILE", str(config_file)),
+            ):
+                loaded = config.load_config()
+
+        self.assertNotIn("check_for_updates", loaded["settings"])
+        self.assertNotIn("update_check_state", loaded["settings"])
+        self.assertNotIn("check_for_updates", config.DEFAULT_CONFIG["settings"])
+        self.assertNotIn("update_check_state", config.DEFAULT_CONFIG["settings"])
 
     def test_migrate_renames_start_with_windows_to_start_at_login(self):
         legacy = {

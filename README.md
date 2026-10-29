@@ -304,7 +304,7 @@ That Linux autostart entry includes a short GNOME startup delay so Mouser does n
 
 </details>
 
-> **Automated releases:** pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds Windows, macOS (Apple Silicon + Intel), and Linux artifacts in CI and uploads them to the GitHub Release.
+> **This fork publishes no binaries.** It is built from source with `scripts/install-macos.sh`; see the Fork lifecycle section in [DEVELOPMENT.md](DEVELOPMENT.md).
 
 For project layout, the architecture diagram, the HID++ gesture detector, the Engine + reconnection flow, debug CLI flags (`--hid-backend=iokit|hidapi|auto`), and how to run the test suite, see [DEVELOPMENT.md](DEVELOPMENT.md). To add a new device, see [CONTRIBUTING_DEVICES.md](CONTRIBUTING_DEVICES.md).
 

@@ -20,7 +20,7 @@ SPEC_FILES = {
     "linux": "Mouser-linux.spec",
 }
 
-# App code that ships inside the bundle. scripts/ and tools/ are build/dev-side.
+# App code that ships inside the bundle. scripts/ is build/dev-side.
 APP_CODE_DIRS = ("core", "ui")
 APP_ENTRY = "main_qml.py"
 

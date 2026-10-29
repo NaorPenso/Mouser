@@ -1100,10 +1100,6 @@ def main():
 
     _print_startup_times()
     _t5 = _time.perf_counter()
-    if len(sys.argv) >= 3 and sys.argv[1] == "--mouser-apply-update":
-        from core.update_installer import apply_windows_update_from_state
-
-        raise SystemExit(apply_windows_update_from_state(sys.argv[2]))
     argv, hid_backend, start_hidden, force_show = _parse_cli_args(sys.argv)
     cfg = load_config()
     cfg_settings = cfg.get("settings", {})
@@ -1357,14 +1353,6 @@ def main():
     backend.settingsChanged.connect(sync_debug_action)
     sync_debug_action()
 
-    check_updates_action = QAction(locale_mgr.tr("tray.check_for_updates"), tray_menu)
-    check_updates_action.triggered.connect(backend.manualCheckForUpdates)
-    tray_menu.addAction(check_updates_action)
-
-    open_release_action = QAction(locale_mgr.tr("tray.open_latest_release"), tray_menu)
-    open_release_action.triggered.connect(backend.openLatestReleasePage)
-    tray_menu.addAction(open_release_action)
-
     tray_menu.addSeparator()
 
     quit_action = QAction(locale_mgr.tr("tray.quit"), tray_menu)
@@ -1383,8 +1371,6 @@ def main():
         """Refresh tray menu labels after a language change."""
         open_action.setText(locale_mgr.tr("tray.open_settings"))
         quit_action.setText(locale_mgr.tr("tray.quit"))
-        check_updates_action.setText(locale_mgr.tr("tray.check_for_updates"))
-        open_release_action.setText(locale_mgr.tr("tray.open_latest_release"))
         sync_debug_action()
         # Re-sync toggle text based on current engine state
         toggle_action.setText(
@@ -1402,13 +1388,6 @@ def main():
 
     locale_mgr.languageChanged.connect(_update_tray_texts)
     locale_mgr.languageChanged.connect(_save_language)
-
-    backend.updateAvailable.connect(lambda version, url: tray.showMessage(
-        "Mouser",
-        locale_mgr.tr("tray.update_available").format(version=version),
-        QSystemTrayIcon.MessageIcon.Information,
-        8000,
-    ))
 
     tray.setContextMenu(tray_menu)
     tray.activated.connect(lambda reason: (

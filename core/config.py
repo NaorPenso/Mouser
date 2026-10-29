@@ -300,8 +300,6 @@ DEFAULT_CONFIG = {
         "ignore_trackpad": True,
         "screenshot_directory": "",
         "wheel_divert": WHEEL_DIVERT_DEFAULT,
-        "check_for_updates": True,
-        "update_check_state": {},
         "force_sensitivity": None,
         "actions_ring_hold_ms": 250,
         "actions_ring_hover_haptic": True,
@@ -748,8 +746,10 @@ def _migrate(cfg):
     cfg["settings"].setdefault("ignore_trackpad", True)
     cfg["settings"].setdefault("scroll_force", 50)
     cfg["settings"].setdefault("screenshot_directory", "")
-    cfg["settings"].setdefault("check_for_updates", True)
-    cfg["settings"].setdefault("update_check_state", {})
+    # The in-app release check was removed; drop its keys from configs that
+    # were written by builds that still had it.
+    cfg["settings"].pop("check_for_updates", None)
+    cfg["settings"].pop("update_check_state", None)
     cfg["settings"]["wheel_divert"] = coerce_wheel_divert_setting(
         cfg["settings"].get("wheel_divert", WHEEL_DIVERT_DEFAULT)
     )
