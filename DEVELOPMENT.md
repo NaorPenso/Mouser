@@ -21,16 +21,20 @@ This document contains the technical details a developer needs to navigate Mouse
 - [Build internals](#build-internals)
 - [Desktop shortcut (Windows)](#desktop-shortcut-windows)
 - [Debugging tips](#debugging-tips)
+- [Fork lifecycle](#fork-lifecycle)
 
 ## Development setup
 
 Install the project dependencies before running the app or test suite. Do not rely on the system Python unless it already has the requirements installed.
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python --require-hashes -r requirements.lock
 ```
+
+`requirements.lock` is the hash-pinned, cross-platform set every install and
+CI run uses; `requirements.txt` only records the tested floors. Regenerate the
+lock with `scripts/audit-deps.sh` (see [Fork lifecycle](#fork-lifecycle)).
 
 On macOS, `requirements.txt` installs PyObjC (`objc`, Quartz, and AppKit bindings), which Mouser needs for CGEventTap, app detection, and key simulation.
 
@@ -221,8 +225,7 @@ mouser/
 ├── build_macos_app.sh           # macOS bundle build + icon/signing flow
 ├── packaging/linux/             # 69-mouser-logitech.rules + install-linux-permissions.sh
 ├── .github/workflows/
-│   ├── ci.yml                   # CI checks (compile, tests, QML lint)
-│   └── release.yml              # Automated release builds (Windows / macOS arm64+intel / Linux)
+│   └── ci.yml                   # CI checks (hashed install, audit, compile, tests, QML lint)
 ├── README.md / README_CN.md / readme_mac_osx.md / CONTRIBUTING_DEVICES.md / DEVELOPMENT.md
 ├── requirements.txt
 │
@@ -353,3 +356,30 @@ $s.Save()
 - **HID transport override:** `--hid-backend=iokit|hidapi|auto` lets you isolate transport-specific bugs (e.g. Bolt receivers, BLE quirks).
 - **Logs:** `~/Library/Logs/Mouser/mouser.log`, `%APPDATA%\Mouser\logs\mouser.log`, or `$XDG_STATE_HOME/Mouser/logs/mouser.log`. Stdout is redirected through the rotating file handler; stderr is preserved so logging-handler errors don't recurse.
 - **Linux permissions:** [`core/linux_permissions.py`](core/linux_permissions.py) emits a `LinuxPermissionReport` describing which `/dev/hidraw*`, `/dev/input/event*`, and `/dev/uinput` nodes are blocked. Mouser surfaces this via the UI banner and the log.
+
+## Fork lifecycle
+
+This repository is a personal fork of `TomBadash/Mouser`. The rules that
+make it different from upstream (no network code, no auto-update, source
+builds only, hash-pinned dependencies) live in [CLAUDE.md](CLAUDE.md) and
+are enforced by `tests/test_no_network.py`.
+
+| Branch | Purpose |
+|---|---|
+| `master` | Exact mirror of `upstream/master`. Never commit here. |
+| `fork` | Default branch with every customization. |
+| `feat/*`, `fix/*` | Work branches off `fork`. |
+| `sync/upstream-YYYYMMDD` | One per upstream merge, created by the sync script. |
+
+Scripts (all idempotent, all refuse to proceed on a red gate):
+
+| Script | What it does |
+|---|---|
+| `scripts/verify.sh` | Hashed dependency install, compile, full test suite, QML lint, `pip-audit`. |
+| `scripts/install-macos.sh` | `verify.sh`, then `build_macos_app.sh`, then replaces `/Applications/Mouser.app` and relaunches. |
+| `scripts/sync-upstream.sh` | Fast-forwards `master` to upstream, merges upstream into a `sync/` branch off `fork`, runs `verify.sh`. |
+| `scripts/audit-deps.sh` | Re-resolves `requirements.lock` to the newest allowed versions, audits it, prints the diff. |
+
+Typical month: run `scripts/audit-deps.sh` and commit the lock if clean; run
+`scripts/sync-upstream.sh`, resolve any conflicts in favor of the fork rules,
+merge the sync branch into `fork`; run `scripts/install-macos.sh`.
