@@ -248,6 +248,7 @@ _TRANSLATIONS = {
         "about.ratmode_3": "English only: the Chinese locales, README and language switcher are gone.",
         "about.ratmode_4": "Apple look: Human Interface Guidelines colors (macOS selection blue, HIG neutrals) and the system font.",
         "about.ratmode_5": "Built from source only, with hash-pinned and audited dependencies; no release binaries.",
+        "about.ratmode_7": "Double press on every button: a second action for click-then-click (or click-then-hold, e.g. Sense Panel click opens the Actions Ring, click and hold holds Fn), in instant or wait mode with a configurable window.",
         "about.ratmode_6": "Configuration as code: the recommended MX Master 4 setup ships in configs/mx4-ratmode.json.",
 
         # Language names

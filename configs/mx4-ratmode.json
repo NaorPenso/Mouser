@@ -5,14 +5,15 @@
     "device": "Logitech MX Master 4 over Bluetooth",
     "summary": "Recommended MX4 configuration for the RatMode fork. Apply with scripts/config-apply.sh mx4-ratmode; export UI changes back with scripts/config-export.sh mx4-ratmode.",
     "notes": {
-      "actions_ring": "Sense Panel (Actions Ring button) is wired to Wispr Flow push-to-talk: hold:alt+grave keeps Opt+` pressed for as long as the panel is held, so you dictate with the mouse and release to stop.",
-      "gesture": "Gesture button taps Opt+` (momentary) for the Wispr Flow toggle.",
+      "actions_ring": "Sense Panel single click opens the Actions Ring (Mission Control, Play/Pause, Show Desktop, Launchpad); press and hold opens it until release.",
+      "actions_ring_double": "Sense Panel click, then click and hold = Wispr Flow push-to-talk: hold:fn keeps Fn down for as long as the second press is held. hold:alt+grave (Opt+`) is the same Wispr Flow binding if Fn does not trigger it.",
+      "double_press": "double_press_mode 'instant' fires the single action at once and cancels it (closes the ring) when a second press lands inside double_press_window_ms; 'wait' holds the single action back until the window passes. Tune both in settings.",
+      "gesture": "Gesture button cuts.",
       "xbutton1": "Back button pastes.",
       "xbutton2": "Forward button copies.",
-      "hscroll_left": "Thumb wheel left = previous tab.",
-      "hscroll_right": "Thumb wheel right = next tab.",
-      "mode_shift": "Wheel mode button switches ratchet / free spin.",
-      "actions_ring_slots": "Ring slots (unused while the panel is on push-to-talk): Mission Control, Play/Pause, Show Desktop, Launchpad."
+      "hscroll_left": "Thumb wheel left = next tab.",
+      "hscroll_right": "Thumb wheel right = previous tab.",
+      "mode_shift": "Wheel mode button switches ratchet / free spin."
     }
   },
   "version": 11,
@@ -23,17 +24,17 @@
       "apps": [],
       "mappings": {
         "middle": "none",
-        "gesture": "custom:alt+grave",
+        "gesture": "cut",
         "gesture_left": "none",
         "gesture_right": "none",
         "gesture_up": "none",
         "gesture_down": "none",
         "xbutton1": "paste",
         "xbutton2": "copy",
-        "hscroll_left": "prev_tab",
-        "hscroll_right": "next_tab",
+        "hscroll_left": "next_tab",
+        "hscroll_right": "prev_tab",
         "mode_shift": "switch_scroll_mode",
-        "actions_ring": "hold:alt+grave",
+        "actions_ring": "activate_actions_ring",
         "actions_ring_left": "none",
         "actions_ring_right": "none",
         "actions_ring_up": "none",
@@ -43,7 +44,7 @@
         "mode_shift_tap": "none",
         "middle_tap": "none",
         "xbutton1_tap": "none",
-        "xbutton2_tap": "none",
+        "xbutton2_tap": "select_all",
         "mode_shift_left": "none",
         "mode_shift_right": "none",
         "mode_shift_up": "none",
@@ -66,7 +67,15 @@
           "play_pause",
           "show_desktop",
           "launchpad"
-        ]
+        ],
+        "middle_double": "none",
+        "gesture_double": "none",
+        "xbutton1_double": "none",
+        "xbutton2_double": "none",
+        "mode_shift_double": "none",
+        "dpi_switch_double": "none",
+        "actions_ring_double": "hold:fn",
+        "thumb_button_double": "none"
       },
       "button_haptic": {}
     }
@@ -106,6 +115,8 @@
       "play_pause",
       "show_desktop",
       "launchpad"
-    ]
+    ],
+    "double_press_mode": "instant",
+    "double_press_window_ms": 300
   }
 }

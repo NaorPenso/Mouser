@@ -710,6 +710,187 @@ class WheelInvertConnectThreadingTests(unittest.TestCase):
             request.assert_called_once_with(True, False)
 
 
+
+class _ManualTimer:
+    """threading.Timer stand-in whose expiry the test triggers by hand."""
+
+    live = []
+
+    def __init__(self, interval, callback):
+        self.interval = interval
+        self.callback = callback
+        self.cancelled = False
+        self.daemon = False
+
+    def start(self):
+        _ManualTimer.live.append(self)
+
+    def cancel(self):
+        self.cancelled = True
+
+    @classmethod
+    def expire_all(cls):
+        pending, cls.live = cls.live, []
+        for timer in pending:
+            if not timer.cancelled:
+                timer.callback()
+
+
+class DoublePressEngineTests(unittest.TestCase):
+    """End to end through the engine: a "<btn>_double" mapping splits single
+    and double presses for OS buttons and HID-diverted controls alike."""
+
+    def _make_engine(self, mappings, mode="instant", window_ms=300):
+        from core.engine import Engine
+
+        cfg = copy.deepcopy(DEFAULT_CONFIG)
+        cfg["profiles"]["default"]["mappings"].update(mappings)
+        cfg["settings"]["double_press_mode"] = mode
+        cfg["settings"]["double_press_window_ms"] = window_ms
+        hook = _RecordingMouseHook()
+        _ManualTimer.live = []
+        self._timer_patch = patch("core.double_press.threading.Timer", _ManualTimer)
+        self._timer_patch.start()
+        self.addCleanup(self._timer_patch.stop)
+        with (
+            patch("core.engine.MouseHook", lambda: hook),
+            patch("core.engine.AppDetector", _FakeAppDetector),
+            patch("core.engine.load_config", return_value=cfg),
+        ):
+            engine = Engine()
+        return engine, hook
+
+    def test_ring_click_then_click_and_hold_holds_fn_in_instant_mode(self):
+        engine, hook = self._make_engine({
+            "actions_ring": "activate_actions_ring",
+            "actions_ring_double": "hold:fn",
+        })
+        self.assertIn("sense_click", hook.blocked)
+        with (
+            patch("core.actions_ring.threading.Timer", _ManualTimer),
+            patch("core.engine.hold_action_press") as press,
+            patch("core.engine.hold_action_release") as release,
+            patch("core.engine.threading.Timer"),
+        ):
+            # Single click: the ring opens right away, in toggle mode.
+            hook.fire("sense_button_down")
+            hook.fire("sense_button_up")
+            self.assertEqual(engine._ring.state, engine._ring.SHOWING_TOGGLE)
+            # Second press inside the window: ring closes, Fn goes down.
+            hook.fire("sense_button_down")
+            self.assertEqual(engine._ring.state, engine._ring.IDLE)
+            press.assert_called_once_with("hold:fn")
+            release.assert_not_called()
+            hook.fire("sense_button_up")
+            release.assert_called_once_with("hold:fn")
+
+    def test_ring_single_click_in_wait_mode_opens_only_after_the_window(self):
+        engine, hook = self._make_engine({
+            "actions_ring": "activate_actions_ring",
+            "actions_ring_double": "hold:fn",
+        }, mode="wait", window_ms=400)
+        with (
+            patch("core.actions_ring.threading.Timer", _ManualTimer),
+            patch("core.engine.hold_action_press") as press,
+        ):
+            hook.fire("sense_button_down")
+            hook.fire("sense_button_up")
+            self.assertEqual(engine._ring.state, engine._ring.IDLE)
+            self.assertEqual(_ManualTimer.live[-1].interval, 0.4)
+            _ManualTimer.expire_all()
+            self.assertEqual(engine._ring.state, engine._ring.SHOWING_TOGGLE)
+        press.assert_not_called()
+
+    def test_ring_double_press_in_wait_mode_never_flashes_the_ring(self):
+        engine, hook = self._make_engine({
+            "actions_ring": "activate_actions_ring",
+            "actions_ring_double": "hold:fn",
+        }, mode="wait")
+        shown = []
+        engine.set_ring_show_callback(lambda *args: shown.append(args))
+        with (
+            patch("core.actions_ring.threading.Timer", _ManualTimer),
+            patch("core.engine.hold_action_press") as press,
+            patch("core.engine.hold_action_release") as release,
+            patch("core.engine.threading.Timer"),
+        ):
+            hook.fire("sense_button_down")
+            hook.fire("sense_button_up")
+            hook.fire("sense_button_down")
+            hook.fire("sense_button_up")
+            _ManualTimer.expire_all()
+        self.assertEqual(shown, [])
+        press.assert_called_once_with("hold:fn")
+        release.assert_called_once_with("hold:fn")
+
+    def test_forward_button_single_and_double_actions_in_wait_mode(self):
+        engine, hook = self._make_engine({
+            "xbutton2": "copy",
+            "xbutton2_double": "paste",
+        }, mode="wait")
+        with patch("core.engine.execute_action") as execute:
+            hook.fire("xbutton2_down")
+            hook.fire("xbutton2_up")
+            execute.assert_not_called()
+            _ManualTimer.expire_all()
+            execute.assert_called_once_with("copy")
+            execute.reset_mock()
+            hook.fire("xbutton2_down")
+            hook.fire("xbutton2_up")
+            hook.fire("xbutton2_down")
+            hook.fire("xbutton2_up")
+            _ManualTimer.expire_all()
+        execute.assert_called_once_with("paste")
+
+    def test_unmapped_back_button_keeps_its_native_click_on_a_single_press(self):
+        engine, hook = self._make_engine({
+            "xbutton1": "none",
+            "xbutton1_double": "copy",
+        })
+        self.assertIn("xbutton1_down", hook.blocked)
+        with (
+            patch("core.engine.inject_mouse_down") as down,
+            patch("core.engine.inject_mouse_up") as up,
+            patch("core.engine.execute_action") as execute,
+            patch("core.engine.threading.Timer"),
+        ):
+            hook.fire("xbutton1_down")
+            hook.fire("xbutton1_up")
+        down.assert_called_once_with("mouse_back_click")
+        up.assert_called_once_with("mouse_back_click")
+        execute.assert_not_called()
+
+    def test_double_only_mode_shift_is_still_diverted(self):
+        engine, hook = self._make_engine({
+            "mode_shift": "none",
+            "mode_shift_double": "copy",
+        })
+        self.assertTrue(hook.divert_mode_shift)
+        with patch("core.engine.execute_action") as execute:
+            hook.fire("mode_shift_down")
+            hook.fire("mode_shift_up")
+            hook.fire("mode_shift_down")
+        execute.assert_called_once_with("copy")
+
+    def test_buttons_without_a_double_action_are_wired_as_before(self):
+        engine, hook = self._make_engine({"xbutton2": "copy"})
+        self.assertEqual(engine._double_press_detectors, [])
+        with patch("core.engine.execute_action") as execute:
+            hook.fire("xbutton2_down")
+        execute.assert_called_once_with("copy")
+
+    def test_rewiring_cancels_a_pending_single(self):
+        engine, hook = self._make_engine({
+            "xbutton2": "copy",
+            "xbutton2_double": "paste",
+        }, mode="wait")
+        with patch("core.engine.execute_action") as execute:
+            hook.fire("xbutton2_down")
+            hook.fire("xbutton2_up")
+            engine.stop()
+            _ManualTimer.expire_all()
+        execute.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()
 

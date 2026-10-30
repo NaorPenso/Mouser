@@ -531,7 +531,8 @@ ApplicationWindow {
 
                         Repeater {
                             model: ["about.ratmode_1", "about.ratmode_2", "about.ratmode_3",
-                                    "about.ratmode_4", "about.ratmode_5", "about.ratmode_6"]
+                                    "about.ratmode_4", "about.ratmode_5", "about.ratmode_6",
+                                    "about.ratmode_7"]
                             delegate: Text {
                                 required property string modelData
                                 width: ratModeColumn.width

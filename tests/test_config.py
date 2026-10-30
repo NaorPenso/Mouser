@@ -1071,6 +1071,56 @@ class AppCatalogTests(unittest.TestCase):
         self.assertIn("/usr/lib64/firefox/firefox", resolved["aliases"])
 
 
+
+class DoublePressConfigTests(unittest.TestCase):
+    def test_every_hold_capable_button_gets_a_double_key(self):
+        self.assertEqual(
+            set(config.DOUBLE_PRESS_BUTTONS),
+            {b for b in config.BUTTON_NAMES if config.button_supports_hold(b)},
+        )
+        self.assertIn("actions_ring", config.DOUBLE_PRESS_BUTTONS)
+        self.assertNotIn("hscroll_left", config.DOUBLE_PRESS_BUTTONS)
+        mappings = config.DEFAULT_CONFIG["profiles"]["default"]["mappings"]
+        for key in config.DOUBLE_PRESS_KEYS:
+            with self.subTest(key=key):
+                self.assertEqual(mappings[key], "none")
+
+    def test_double_press_keys_never_show_up_as_ui_buttons(self):
+        for key in config.DOUBLE_PRESS_KEYS:
+            with self.subTest(key=key):
+                self.assertNotIn(key, config.PROFILE_BUTTON_NAMES)
+
+    def test_older_configs_are_seeded_and_bad_values_coerced(self):
+        cfg = {
+            "version": 11,
+            "profiles": {"default": {"mappings": {"actions_ring": "copy"}}},
+            "settings": {"double_press_mode": "sometimes",
+                         "double_press_window_ms": 1},
+        }
+        migrated = config._migrate(cfg)
+        mappings = migrated["profiles"]["default"]["mappings"]
+        self.assertEqual(mappings["actions_ring_double"], "none")
+        self.assertEqual(migrated["settings"]["double_press_mode"], "instant")
+        self.assertEqual(migrated["settings"]["double_press_window_ms"], 50)
+
+    def test_about_dialog_lists_double_press(self):
+        import re
+        from ui.locale_manager import _TRANSLATIONS
+        main_qml = (Path(__file__).resolve().parents[1] / "ui" / "qml" / "Main.qml"
+                    ).read_text(encoding="utf-8")
+        keys = re.findall(r'"(about\.ratmode_\d+)"', main_qml)
+        self.assertIn("about.ratmode_7", keys)
+        for key in keys:
+            with self.subTest(key=key):
+                self.assertIn(key, _TRANSLATIONS["en"])
+        self.assertIn("Double press", _TRANSLATIONS["en"]["about.ratmode_7"])
+
+    def test_double_press_action_reads_only_real_buttons(self):
+        mappings = {"xbutton2_double": "paste", "hscroll_left_double": "copy"}
+        self.assertEqual(config.double_press_action(mappings, "xbutton2"), "paste")
+        self.assertEqual(config.double_press_action(mappings, "xbutton1"), "none")
+        self.assertEqual(config.double_press_action(mappings, "hscroll_left"), "none")
+
 if __name__ == "__main__":
     unittest.main()
 

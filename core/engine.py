@@ -20,7 +20,9 @@ from core.config import (
     WHEEL_DIVERT_OFF, coerce_wheel_divert_setting,
     GESTURE_SWIPE_ACTION, BUTTON_GESTURE_OWNERS, BUTTON_GESTURE_DIRECTIONS,
     button_gesture_owners, button_gesture_bindings_for, button_gesture_tap_action,
+    DOUBLE_PRESS_KEYS, double_press_action,
 )
+from core.double_press import DoublePressDetector
 from core.app_detector import AppDetector
 from core.mouse_hook_types import HidRuntimeState
 from core.linux_permissions import (
@@ -38,6 +40,10 @@ BACKGROUND_BATTERY_POLL_INTERVAL_S = 1800
 BACKGROUND_SMART_SHIFT_POLL_INTERVAL_S = 300
 BACKGROUND_HID_POLL_IDLE_GRACE_S = 60.0
 BACKGROUND_HID_POLL_EVENT_FUZZ_S = 2.0
+
+
+def _ignore_event(_event):
+    return None
 
 
 def _system_idle_seconds():
@@ -123,6 +129,7 @@ class Engine:
         self._replay_lock = threading.Lock()
         self._mouse_release_timers = {}   # action_id → Timer for safety auto-release
         self._held_shortcuts = {}         # hold: action_id → safety Timer while keys are down
+        self._double_press_detectors = []  # one per button with a "<btn>_double" action
         self._ring = None                 # ActionsRingController (created in _setup_hooks)
         self._ring_show_cb = None         # UI callback for showing ring overlay
         self._ring_hide_cb = None         # UI callback for hiding ring overlay
@@ -165,6 +172,7 @@ class Engine:
         write is skipped; the caller is responsible for applying it off the
         HID listener thread (see ``_on_connection_change``).
         """
+        self._shutdown_double_press()
         self._release_held_shortcuts()
         mappings = get_active_mappings(self.cfg)
 
@@ -268,7 +276,8 @@ class Engine:
         self.hook.divert_mode_shift = (
             has_mode_shift
             and any(
-                pdata.get("mappings", {}).get("mode_shift", "none") != "none"
+                (pdata.get("mappings", {}).get("mode_shift", "none") != "none"
+                 or double_press_action(pdata.get("mappings", {}), "mode_shift") != "none")
                 for pdata in self.cfg.get("profiles", {}).values()
             )
         )
@@ -278,7 +287,8 @@ class Engine:
         self.hook.divert_dpi_switch = (
             has_dpi_switch
             and any(
-                pdata.get("mappings", {}).get("dpi_switch", "none") != "none"
+                (pdata.get("mappings", {}).get("dpi_switch", "none") != "none"
+                 or double_press_action(pdata.get("mappings", {}), "dpi_switch") != "none")
                 for pdata in self.cfg.get("profiles", {}).values()
             )
         )
@@ -328,6 +338,16 @@ class Engine:
             # button_tap / button_swipe handlers registered below. Never wire a
             # normal handler for the "gesture_swipe" sentinel itself.
             if action_id == GESTURE_SWIPE_ACTION:
+                continue
+            # "<btn>_double" keys are wired together with their button.
+            if btn_key in DOUBLE_PRESS_KEYS:
+                continue
+            # Double press: the button's events go through a detector that
+            # splits single presses from double presses.
+            double_action = double_press_action(mappings, btn_key)
+            if (double_action != "none"
+                    and self._wire_double_press(btn_key, action_id,
+                                                double_action, settings)):
                 continue
             # Actions Ring — route through controller when mapped to the ring action.
             if action_id == "activate_actions_ring" and self._ring is not None:
@@ -565,22 +585,96 @@ class Engine:
                 import traceback; traceback.print_exc()
         return handler
 
+    @staticmethod
+    def _press_events(btn_key):
+        """``(down_evt, up_evt, native_events)`` for a button that reports
+        press and release, or None. ``native_events`` are the click events a
+        native control (Gesture button, Sense Panel) reports in addition; a
+        caller that takes over the press must block them so the click does
+        not fire a second time on release."""
+        events = tuple(BUTTON_TO_EVENTS.get(btn_key, ()))
+        down_evt = next((e for e in events if e.endswith("_down")), None)
+        up_evt = next((e for e in events if e.endswith("_up")), None)
+        if down_evt and up_evt:
+            return down_evt, up_evt, ()
+        hold_events = BUTTON_HOLD_EVENTS.get(btn_key)
+        if hold_events:
+            return hold_events[0], hold_events[1], events
+        return None
+
+    # The OS click a remapped mouse button stands in for. With a double
+    # action, a single press of an unmapped Back/Forward/Middle button is
+    # replayed as its own click so it keeps working natively.
+    _NATIVE_CLICK_FOR_BUTTON = {
+        "middle": "mouse_middle_click",
+        "xbutton1": "mouse_back_click",
+        "xbutton2": "mouse_forward_click",
+    }
+
+    def _press_handlers(self, btn_key, action_id):
+        """``(down, up, cancel)`` handlers that perform ``action_id`` as a
+        press of ``btn_key``. ``cancel`` undoes what a press left open (an
+        Actions Ring shown in toggle mode) or is None."""
+        if action_id == "none":
+            native = self._NATIVE_CLICK_FOR_BUTTON.get(btn_key)
+            if native is None or not is_mouse_button_action(native):
+                return _ignore_event, _ignore_event, None
+            action_id = native
+        if action_id == "activate_actions_ring" and self._ring is not None:
+            ring = self._ring
+            return (lambda _e: ring.on_button_down(),
+                    lambda _e: self._on_ring_button_up(ring),
+                    ring.on_toggle_dismiss)
+        if is_hold_action(action_id):
+            return (self._make_hold_down_handler(action_id, btn_key),
+                    self._make_hold_up_handler(action_id), None)
+        if is_mouse_button_action(action_id):
+            return (self._make_mouse_down_handler(action_id),
+                    self._make_mouse_up_handler(action_id), None)
+        return self._make_handler(action_id, btn_key), _ignore_event, None
+
+    def _wire_double_press(self, btn_key, action_id, double_action, settings):
+        """Route a button through a DoublePressDetector. Returns False when the
+        button has no release event, so a double press cannot be told apart."""
+        press = self._press_events(btn_key)
+        if press is None:
+            return False
+        down_evt, up_evt, native_events = press
+        single_down, single_up, cancel_single = self._press_handlers(btn_key, action_id)
+        double_down, double_up, _ = self._press_handlers(btn_key, double_action)
+        detector = DoublePressDetector(
+            single_down=single_down, single_up=single_up,
+            double_down=double_down, double_up=double_up,
+            cancel_single=cancel_single,
+            window_ms=settings.get("double_press_window_ms"),
+            mode=settings.get("double_press_mode"),
+        )
+        self._double_press_detectors.append(detector)
+        for evt_type in (*native_events, down_evt, up_evt):
+            self.hook.block(evt_type)
+        self.hook.register(down_evt, detector.on_down)
+        self.hook.register(up_evt, detector.on_up)
+        self._emit_debug(
+            f"Double press {btn_key}: single={action_id} double={double_action} "
+            f"mode={detector.mode}"
+        )
+        return True
+
+    def _shutdown_double_press(self):
+        for detector in self._double_press_detectors:
+            detector.shutdown()
+        self._double_press_detectors = []
+
     def _wire_hold_shortcut(self, btn_key, action_id):
         """Bind a ``hold:`` shortcut to the button's press/release events.
 
         Returns False when the button has no release event to pair with."""
-        events = list(BUTTON_TO_EVENTS.get(btn_key, ()))
-        down_evt = next((e for e in events if e.endswith("_down")), None)
-        up_evt = next((e for e in events if e.endswith("_up")), None)
-        if not (down_evt and up_evt):
-            hold_events = BUTTON_HOLD_EVENTS.get(btn_key)
-            if not hold_events:
-                return False
-            down_evt, up_evt = hold_events
-            # The native control also reports a click; swallow it so the
-            # shortcut is not tapped a second time on release.
-            for evt_type in events:
-                self.hook.block(evt_type)
+        press = self._press_events(btn_key)
+        if press is None:
+            return False
+        down_evt, up_evt, native_events = press
+        for evt_type in native_events:
+            self.hook.block(evt_type)
         self.hook.block(down_evt)
         self.hook.block(up_evt)
         self.hook.register(down_evt, self._make_hold_down_handler(action_id, btn_key))
@@ -1721,6 +1815,7 @@ class Engine:
         self._smart_shift_read_cb = cb
 
     def stop(self):
+        self._shutdown_double_press()
         self._release_held_shortcuts()
         if self._ring:
             self._ring.shutdown()

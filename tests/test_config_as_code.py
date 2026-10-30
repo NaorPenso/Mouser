@@ -45,10 +45,13 @@ class ConfigFilesTests(unittest.TestCase):
         self.assertIn("MX Master 4", about["name"])
         self.assertIn("RatMode", about["name"])
         self.assertEqual(about["author"], "Naor Penso")
-        self.assertIn("Wispr Flow", about["notes"]["actions_ring"])
-        self.assertIn("push-to-talk", about["notes"]["actions_ring"])
+        self.assertIn("Wispr Flow", about["notes"]["actions_ring_double"])
+        self.assertIn("push-to-talk", about["notes"]["actions_ring_double"])
         mappings = doc["profiles"]["default"]["mappings"]
-        self.assertEqual(mappings["actions_ring"], "hold:alt+grave")
+        self.assertEqual(mappings["actions_ring"], "activate_actions_ring")
+        self.assertEqual(mappings["actions_ring_double"], "hold:fn")
+        self.assertIn(doc["settings"]["double_press_mode"], ("instant", "wait"))
+        self.assertIsInstance(doc["settings"]["double_press_window_ms"], int)
         self.assertEqual(mappings["xbutton1"], "paste")
         self.assertEqual(mappings["xbutton2"], "copy")
         self.assertIn("MX4", doc["profiles"]["default"]["label"])
@@ -79,8 +82,8 @@ class ApplyExportRoundTripTests(unittest.TestCase):
                 self.assertTrue(os.path.exists(live))
                 installed = core_config.load_config()
                 self.assertEqual(
-                    installed["profiles"]["default"]["mappings"]["actions_ring"],
-                    "hold:alt+grave",
+                    installed["profiles"]["default"]["mappings"]["actions_ring_double"],
+                    "hold:fn",
                 )
                 # The _about block survives the app's own load path.
                 self.assertIn("_about", installed)

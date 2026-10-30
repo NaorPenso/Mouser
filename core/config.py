@@ -10,6 +10,12 @@ import sys
 import tempfile
 from urllib.parse import quote
 from core import app_catalog
+from core.double_press import (
+    DEFAULT_DOUBLE_PRESS_MODE,
+    DEFAULT_DOUBLE_PRESS_WINDOW_MS,
+    coerce_double_press_mode,
+    coerce_double_press_window_ms,
+)
 
 if sys.platform == "darwin":
     CONFIG_DIR = os.path.join(os.path.expanduser("~"), "Library", "Application Support", "Mouser")
@@ -218,6 +224,25 @@ def button_supports_hold(button_key):
     has_up = any(e.endswith("_up") for e in events)
     return (has_down and has_up) or button_key in BUTTON_HOLD_EVENTS
 
+
+# ── Double press ─────────────────────────────────────────────────────────────
+# Every button that reports press and release can carry a second action on a
+# double press ("<btn>_double"). The second press is held like a normal press,
+# so a "hold:" shortcut there gives click-then-hold push-to-talk. How single
+# and double presses are told apart is global: settings "double_press_mode"
+# ("instant" or "wait") and "double_press_window_ms". See core/double_press.py.
+DOUBLE_PRESS_SUFFIX = "_double"
+DOUBLE_PRESS_BUTTONS = tuple(b for b in BUTTON_NAMES if button_supports_hold(b))
+DOUBLE_PRESS_KEYS = tuple(f"{b}{DOUBLE_PRESS_SUFFIX}" for b in DOUBLE_PRESS_BUTTONS)
+
+
+def double_press_action(mappings, button_key):
+    """The action a double press of ``button_key`` fires ("none" when unset)."""
+    if button_key not in DOUBLE_PRESS_BUTTONS:
+        return "none"
+    action = mappings.get(f"{button_key}{DOUBLE_PRESS_SUFFIX}", "none")
+    return action if isinstance(action, str) and action else "none"
+
 # Several native actions (app_expose, mission_control, show_desktop, launchpad)
 # exist only in the macOS ACTIONS table. DEFAULT_CONFIG is shared across all
 # platforms, so the platform-varying defaults are built per OS to avoid seeding
@@ -268,6 +293,8 @@ DEFAULT_CONFIG = {
                 # and every button's "_tap" key.)
                 **{key: "none" for key in GESTURE_SWIPE_SEED_KEYS},
                 "thumb_button": "none",
+                # Double press: a second action per button, "none" = off.
+                **{key: "none" for key in DOUBLE_PRESS_KEYS},
                 "actions_ring_slots": _default_actions_ring_slots(),
             },
             "button_haptic": {},  # per-button haptic override; absent key = enabled (True)
@@ -304,6 +331,8 @@ DEFAULT_CONFIG = {
         "actions_ring_hover_haptic": True,
         "actions_ring_use_global": True,
         "actions_ring_slots": _default_actions_ring_slots(),
+        "double_press_mode": DEFAULT_DOUBLE_PRESS_MODE,
+        "double_press_window_ms": DEFAULT_DOUBLE_PRESS_WINDOW_MS,
     },
 }
 
@@ -750,6 +779,12 @@ def _migrate(cfg):
     cfg["settings"].pop("update_check_state", None)
     # The UI is English only; drop the language switch written by older builds.
     cfg["settings"].pop("language", None)
+    cfg["settings"]["double_press_mode"] = coerce_double_press_mode(
+        cfg["settings"].get("double_press_mode", DEFAULT_DOUBLE_PRESS_MODE)
+    )
+    cfg["settings"]["double_press_window_ms"] = coerce_double_press_window_ms(
+        cfg["settings"].get("double_press_window_ms", DEFAULT_DOUBLE_PRESS_WINDOW_MS)
+    )
     cfg["settings"]["wheel_divert"] = coerce_wheel_divert_setting(
         cfg["settings"].get("wheel_divert", WHEEL_DIVERT_DEFAULT)
     )
@@ -788,7 +823,7 @@ def _migrate(cfg):
     #     swipes keep firing under the unified scheme.
     for pdata in cfg.get("profiles", {}).values():
         mappings = pdata.setdefault("mappings", {})
-        for key in GESTURE_SWIPE_SEED_KEYS:
+        for key in GESTURE_SWIPE_SEED_KEYS + DOUBLE_PRESS_KEYS:
             mappings.setdefault(key, "none")
         for btn in NATIVE_GESTURE_BUTTONS:
             if mappings.get(btn, "none") == "none" and any(
