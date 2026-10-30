@@ -64,7 +64,8 @@ class DoublePressDetector:
     def __init__(self, *, single_down, single_up, double_down, double_up,
                  window_ms=DEFAULT_DOUBLE_PRESS_WINDOW_MS,
                  mode=DEFAULT_DOUBLE_PRESS_MODE, cancel_single=None,
-                 timer_factory=None, name="button", clock=None):
+                 timer_factory=None, name="button", clock=None,
+                 on_armed=None, on_idle=None):
         self._single_down = single_down or _noop
         self._single_up = single_up or _noop
         self._double_down = double_down or _noop
@@ -82,6 +83,11 @@ class DoublePressDetector:
         self._clock = clock or time.monotonic
         self._last_down_at = None
         self._last_up_at = None
+        # Transition hooks, called outside the lock: on_armed when a second
+        # press becomes possible (first release), on_idle when the sequence
+        # is over. The engine uses them to prepare the press that may follow.
+        self._on_armed = on_armed
+        self._on_idle = on_idle
 
     @property
     def state(self):
@@ -135,12 +141,16 @@ class DoublePressDetector:
                     self._first_up_event = event
                 self._state = self.ARMED
                 self._start_timer(self._on_window_expired)
+                if self._on_armed is not None:
+                    calls.insert(0, self._on_armed)
             elif self._state == self.SINGLE_HELD:
                 self._state = self.IDLE
                 calls.append(lambda f=self._single_up, e=event: f(e))
+                self._append_idle(calls)
             elif self._state == self.SECOND_DOWN:
                 self._state = self.IDLE
                 calls.append(lambda f=self._double_up, e=event: f(e))
+                self._append_idle(calls)
             outcome = {
                 self.FIRST_DOWN: "first release, waiting for a second press",
                 self.SINGLE_HELD: "release of the long press",
@@ -186,7 +196,15 @@ class DoublePressDetector:
                 calls.append(lambda f=self._single_up, e=self._first_up_event: f(e))
             self._first_down_event = None
             self._first_up_event = None
+            # Back to idle before a held-back single runs, so its press sees
+            # the idle preparation (e.g. the Actions Ring's rawXY).
+            if self._on_idle is not None:
+                calls.insert(0, self._on_idle)
         self._run(calls)
+
+    def _append_idle(self, calls):
+        if self._on_idle is not None:
+            calls.append(self._on_idle)
 
     def _start_timer(self, callback):
         self._cancel_timer()

@@ -201,6 +201,51 @@ class RobustnessTests(unittest.TestCase):
         self.assertAlmostEqual(_live_timer().interval, 0.45)
 
 
+class TransitionHookTests(unittest.TestCase):
+    def _detector(self, mode):
+        FakeTimer.created = []
+        rec = _Recorder()
+        detector = DoublePressDetector(
+            single_down=rec.handler("single_down"),
+            single_up=rec.handler("single_up"),
+            double_down=rec.handler("double_down"),
+            double_up=rec.handler("double_up"),
+            on_armed=lambda: rec.calls.append(("armed", None)),
+            on_idle=lambda: rec.calls.append(("idle", None)),
+            mode=mode, timer_factory=FakeTimer,
+        )
+        return detector, rec
+
+    def test_armed_runs_before_a_second_press_can_arrive(self):
+        detector, rec = self._detector("wait")
+        detector.on_down("d1")
+        detector.on_up("u1")
+        detector.on_down("d2")
+        detector.on_up("u2")
+        self.assertEqual(_names(rec), ["armed", "double_down", "double_up", "idle"])
+
+    def test_idle_runs_before_a_held_back_single(self):
+        detector, rec = self._detector("wait")
+        detector.on_down("d1")
+        detector.on_up("u1")
+        _live_timer().fire()
+        self.assertEqual(_names(rec), ["armed", "idle", "single_down", "single_up"])
+
+    def test_instant_mode_arms_after_the_single_release(self):
+        detector, rec = self._detector("instant")
+        detector.on_down("d1")
+        detector.on_up("u1")
+        _live_timer().fire()
+        self.assertEqual(_names(rec), ["single_down", "armed", "single_up", "idle"])
+
+    def test_long_press_returns_to_idle_on_release(self):
+        detector, rec = self._detector("wait")
+        detector.on_down("d1")
+        _live_timer().fire()
+        detector.on_up("u1")
+        self.assertEqual(_names(rec), ["single_down", "single_up", "idle"])
+
+
 class CoercionTests(unittest.TestCase):
     def test_mode_falls_back_to_instant(self):
         self.assertEqual(coerce_double_press_mode("wait"), "wait")

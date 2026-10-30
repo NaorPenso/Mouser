@@ -1440,6 +1440,39 @@ class HidReconnectInvariantTests(unittest.TestCase):
         extra_up.assert_called_once_with()
 
 
+class StaleHoldTests(unittest.TestCase):
+    """A long, motionless hold (push-to-talk on the Sense Panel) sends no
+    reports. It must only be force-released when the device is gone."""
+
+    def _held_listener(self):
+        gesture_up = Mock()
+        listener = hid_gesture.HidGestureListener(on_up=gesture_up)
+        listener._held = True
+        return listener, gesture_up
+
+    def test_a_silent_but_answering_device_keeps_the_hold(self):
+        listener, gesture_up = self._held_listener()
+        with patch.object(listener, "_request", return_value=(0, 0, 0, 0, [0x0D])) as req:
+            self.assertFalse(listener._check_stale_holds())
+        req.assert_called_once_with(0x00, 0, [0x1B, 0x04, 0x00], timeout_ms=500)
+        self.assertTrue(listener._held)
+        gesture_up.assert_not_called()
+
+    def test_a_device_that_stops_answering_releases_the_hold(self):
+        listener, gesture_up = self._held_listener()
+        with patch.object(listener, "_request", return_value=None), \
+             patch("builtins.print"):
+            self.assertTrue(listener._check_stale_holds())
+        self.assertFalse(listener._held)
+        gesture_up.assert_called_once_with()
+
+    def test_nothing_held_means_no_probe(self):
+        listener = hid_gesture.HidGestureListener()
+        with patch.object(listener, "_request") as req:
+            self.assertFalse(listener._check_stale_holds())
+        req.assert_not_called()
+
+
 class MxMaster4ConstantTests(unittest.TestCase):
     def test_sense_panel_cid_named(self):
         self.assertIn(0x01A0, hid_gesture.KNOWN_CID_NAMES)

@@ -2753,6 +2753,29 @@ class HidGestureListener:
         self._pending_force_sensing = None
         self._force_sensing_event.set()
 
+    def _any_button_held(self):
+        return self._held or any(
+            info["held"] for info in self._extra_diverts.values())
+
+    def _device_answers(self):
+        """Cheap liveness probe: look up the REPROG_V4 feature index."""
+        return self._request(0x00, 0, [0x1B, 0x04, 0x00], timeout_ms=500) is not None
+
+    def _check_stale_holds(self):
+        """Called after a few seconds without any report from the device.
+
+        Silence alone does not mean a button is stuck: a finger resting on
+        the Sense Panel for a push-to-talk hold sends nothing either. Only
+        when the device also fails to answer a request is the link treated
+        as stalled and the held buttons released. Returns True when it
+        released them."""
+        if not self._any_button_held():
+            return False
+        if self._device_answers():
+            return False
+        self._force_release_stale_holds()
+        return True
+
     def _force_release_stale_holds(self):
         """Synthesize UP events for any buttons stuck in the held state.
 
@@ -3468,7 +3491,8 @@ class HidGestureListener:
                         # Force-release buttons stuck in held state when the
                         # device stops sending reports (firmware stall / sleep).
                         if _no_data_count >= _STALE_HOLD_LIMIT:
-                            self._force_release_stale_holds()
+                            _no_data_count = 0
+                            self._check_stale_holds()
             except Exception as e:
                 print(f"[HidGesture] read error: {e}")
 

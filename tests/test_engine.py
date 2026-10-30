@@ -882,18 +882,34 @@ class DoublePressEngineTests(unittest.TestCase):
             hook.fire("xbutton2_down")
         execute.assert_called_once_with("copy")
 
-    def _mx4(self, hook):
+    def _mx4(self, engine, hook):
+        """Re-wire as the connection callback does once an MX Master 4 (whose
+        rawXY control is the Sense Panel) is known."""
         hook.connected_device = SimpleNamespace(
             gesture_via_sense_panel=True, supported_buttons=None)
+        hook.reset_bindings()
+        engine._setup_hooks(defer_wheel_invert=True)
 
-    def test_held_fn_on_the_sense_panel_keeps_the_pointer_moving(self):
-        # The Sense Panel is diverted with rawXY, which pins the cursor while
-        # it is held. A double-press Fn hold must release it for the hold.
+    def test_idle_sense_panel_keeps_rawxy_only_for_motion_actions(self):
+        for single, free in (("activate_actions_ring", False),
+                             ("gesture_swipe", False),
+                             ("hold:alt+grave", True),
+                             ("copy", True)):
+            with self.subTest(single=single):
+                engine, hook = self._make_engine({"actions_ring": single})
+                self._mx4(engine, hook)
+                self.assertEqual(hook.pointer_free_calls[-1], free)
+
+    def test_pointer_is_freed_before_the_held_fn_press_and_pinned_after(self):
+        # The firmware fixes the cursor pin when a press starts, so the
+        # Sense Panel goes button-only at the first release, before the
+        # second press that holds Fn, and back to rawXY once it is over.
         engine, hook = self._make_engine({
             "actions_ring": "activate_actions_ring",
             "actions_ring_double": "hold:fn",
         }, mode="wait")
-        self._mx4(hook)
+        self._mx4(engine, hook)
+        hook.pointer_free_calls.clear()
         with (
             patch("core.actions_ring.threading.Timer", _ManualTimer),
             patch("core.engine.hold_action_press") as press,
@@ -901,50 +917,51 @@ class DoublePressEngineTests(unittest.TestCase):
             patch("core.engine.threading.Timer"),
         ):
             hook.fire("sense_button_down")
+            self.assertEqual(hook.pointer_free_calls, [])
             hook.fire("sense_button_up")
-            hook.fire("sense_button_down")
             self.assertEqual(hook.pointer_free_calls, [True])
+            hook.fire("sense_button_down")
             press.assert_called_once_with("hold:fn")
+            self.assertEqual(hook.pointer_free_calls, [True])
             hook.fire("sense_button_up")
             release.assert_called_once_with("hold:fn")
         self.assertEqual(hook.pointer_free_calls, [True, False])
 
-    def test_ring_press_and_hold_keeps_the_cursor_pinned(self):
+    def test_a_single_click_pins_the_cursor_again_before_the_ring_opens(self):
         engine, hook = self._make_engine({
             "actions_ring": "activate_actions_ring",
             "actions_ring_double": "hold:fn",
         }, mode="wait")
-        self._mx4(hook)
+        self._mx4(engine, hook)
+        hook.pointer_free_calls.clear()
+        order = []
+        engine.set_ring_show_callback(lambda *a: order.append("ring"))
+        original = hook.set_gesture_pointer_free
+        hook.set_gesture_pointer_free = (
+            lambda free: (order.append(f"free={free}"), original(free))[1])
         with patch("core.actions_ring.threading.Timer", _ManualTimer):
             hook.fire("sense_button_down")
-            _ManualTimer.expire_all()      # long first press: the ring
             hook.fire("sense_button_up")
-        self.assertEqual(hook.pointer_free_calls, [])
+            _ManualTimer.expire_all()
+        self.assertEqual(order, ["free=True", "free=False", "ring"])
 
-    def test_held_shortcut_on_an_os_button_does_not_touch_the_pointer(self):
-        engine, hook = self._make_engine({"xbutton1": "hold:fn"})
-        self._mx4(hook)
+    def test_double_press_on_an_os_button_never_touches_the_panel(self):
+        engine, hook = self._make_engine({
+            "actions_ring": "activate_actions_ring",
+            "xbutton1": "copy",
+            "xbutton1_double": "hold:fn",
+        })
+        self._mx4(engine, hook)
+        hook.pointer_free_calls.clear()
         with (
+            patch("core.engine.execute_action"),
             patch("core.engine.hold_action_press"),
             patch("core.engine.hold_action_release"),
             patch("core.engine.threading.Timer"),
         ):
-            hook.fire("xbutton1_down")
-            hook.fire("xbutton1_up")
+            for evt in ("xbutton1_down", "xbutton1_up", "xbutton1_down", "xbutton1_up"):
+                hook.fire(evt)
         self.assertEqual(hook.pointer_free_calls, [])
-
-    def test_stopping_mid_hold_pins_the_cursor_again(self):
-        engine, hook = self._make_engine({"actions_ring": "hold:alt+grave"})
-        self._mx4(hook)
-        with (
-            patch("core.engine.hold_action_press"),
-            patch("core.engine.hold_action_release") as release,
-            patch("core.engine.threading.Timer"),
-        ):
-            hook.fire("sense_button_down")
-            engine.stop()
-        release.assert_called_once_with("hold:alt+grave")
-        self.assertEqual(hook.pointer_free_calls, [True, False])
 
     def test_rewiring_cancels_a_pending_single(self):
         engine, hook = self._make_engine({

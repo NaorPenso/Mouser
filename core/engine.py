@@ -130,7 +130,6 @@ class Engine:
         self._mouse_release_timers = {}   # action_id → Timer for safety auto-release
         self._held_shortcuts = {}         # hold: action_id → safety Timer while keys are down
         self._double_press_detectors = []  # one per button with a "<btn>_double" action
-        self._pointer_freed_holds = set()  # hold: action_ids that released a pinned cursor
         self._ring = None                 # ActionsRingController (created in _setup_hooks)
         self._ring_show_cb = None         # UI callback for showing ring overlay
         self._ring_hide_cb = None         # UI callback for hiding ring overlay
@@ -466,6 +465,12 @@ class Engine:
                     click_evt, self._make_handler(tap_action, native_btn)
                 )
 
+        # Idle reporting for the rawXY gesture control: keep rawXY only when
+        # its own action reads motion, so a held shortcut there leaves the
+        # cursor free. A double press re-prepares it between the presses.
+        self._prepare_gesture_pointer(
+            mappings.get(self._primary_gesture_button(), "none"))
+
     def _make_button_tap_handler(self, owner_tap_actions):
         """Handler for a quick tap of a gesture-pad button: fire that owner's
         in-gesture tap action (or nothing when it is "Do Nothing")."""
@@ -643,7 +648,14 @@ class Engine:
         down_evt, up_evt, native_events = press
         single_down, single_up, cancel_single = self._press_handlers(btn_key, action_id)
         double_down, double_up, _ = self._press_handlers(btn_key, double_action)
+        pointer_hooks = {}
+        if btn_key == self._primary_gesture_button():
+            pointer_hooks = {
+                "on_armed": lambda: self._prepare_gesture_pointer(double_action),
+                "on_idle": lambda: self._prepare_gesture_pointer(action_id),
+            }
         detector = DoublePressDetector(
+            **pointer_hooks,
             single_down=single_down, single_up=single_up,
             double_down=double_down, double_up=double_up,
             cancel_single=cancel_single,
@@ -714,6 +726,20 @@ class Engine:
                 import traceback; traceback.print_exc()
         return handler
 
+    @staticmethod
+    def _needs_rawxy(action_id):
+        """Actions that read motion from the held gesture control. Anything
+        else gets the control button-only, so the cursor keeps moving while
+        it is held (a rawXY divert pins the cursor for the whole press)."""
+        return action_id in ("activate_actions_ring", GESTURE_SWIPE_ACTION)
+
+    def _prepare_gesture_pointer(self, action_id):
+        """Set the primary gesture control's reporting for the press that
+        will run ``action_id``. The firmware fixes the cursor pin when a
+        press starts, so this must happen before the press, not during it."""
+        if hasattr(self.hook, "set_gesture_pointer_free"):
+            self.hook.set_gesture_pointer_free(not self._needs_rawxy(action_id))
+
     def _primary_gesture_button(self):
         """Config key of the control the HID layer diverts with rawXY: the
         Sense Panel on the MX Master 4, the Gesture button elsewhere."""
@@ -723,17 +749,9 @@ class Engine:
     def _press_held_shortcut(self, action_id, btn_key=""):
         # A repeated DOWN without an UP (lost release) restarts the hold.
         self._release_held_shortcut(action_id)
-        # The rawXY-diverted control pins the cursor while held; a held
-        # shortcut (push-to-talk) must not freeze the pointer.
-        if (btn_key and btn_key == self._primary_gesture_button()
-                and hasattr(self.hook, "set_gesture_pointer_free")
-                and self.hook.set_gesture_pointer_free(True)):
-            self._pointer_freed_holds.add(action_id)
         hold_action_press(action_id)
-        # No key names in the log (least-privilege rule); the button and the
-        # pointer state are enough to trace a push-to-talk hold.
-        print(f"[Engine] held shortcut down on {btn_key or 'button'}"
-              f"{' (pointer released)' if action_id in self._pointer_freed_holds else ''}")
+        # No key names in the log (least-privilege rule).
+        print(f"[Engine] held shortcut down on {btn_key or 'button'}")
 
         def _safety_release():
             print(f"[Engine] SAFETY RELEASE fired for {action_id} (UP never received)")
@@ -751,10 +769,6 @@ class Engine:
         timer.cancel()
         hold_action_release(action_id)
         print("[Engine] held shortcut up")
-        if action_id in self._pointer_freed_holds:
-            self._pointer_freed_holds.discard(action_id)
-            if not self._pointer_freed_holds:
-                self.hook.set_gesture_pointer_free(False)
 
     def _release_held_shortcuts(self):
         for action_id in list(self._held_shortcuts):
