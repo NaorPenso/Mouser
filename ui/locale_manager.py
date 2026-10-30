@@ -97,6 +97,7 @@ _TRANSLATIONS = {
         "mouse.scroll_left": "SCROLL LEFT",
         "mouse.scroll_right": "SCROLL RIGHT",
         "mouse.tap_action": "TAP ACTION",
+        "mouse.action": "Action",
         "mouse.double_press": "Double press",
         "mouse.double_press_hint": "Click, then click again to run this action. Hold the second press to keep a held shortcut such as Fn down until you let go. Mode and timing are in Settings:",
         "mouse.double_press_off": "Off",

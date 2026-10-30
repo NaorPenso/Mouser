@@ -1181,5 +1181,79 @@ class BackendDoublePressTests(unittest.TestCase):
         self.assertTrue(backend.buttonSupportsHoldAction("xbutton2_double"))
         self.assertFalse(backend.buttonSupportsHoldAction("hscroll_left_double"))
 
+
+@unittest.skipIf(Backend is None, "PySide6 not installed")
+class BackendRingFocusTests(unittest.TestCase):
+    """A ring slot clicked in toggle mode runs only once the app that was in
+    front when the ring opened is in front again: on macOS the click brings
+    Mouser forward, and Cmd+C sent then would copy nothing."""
+
+    USER_APP = 4242
+
+    def _make_backend(self):
+        app = _ensure_qapp()
+        engine = _FakeEngine()
+        with (
+            patch("ui.backend.load_config", return_value=copy.deepcopy(DEFAULT_CONFIG)),
+            patch("ui.backend.supports_login_startup", return_value=False),
+        ):
+            backend = Backend(engine=engine)
+        return app, backend, engine
+
+    def _pump_until(self, app, condition, timeout=2.0):
+        import time
+        deadline = time.monotonic() + timeout
+        while not condition() and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.005)
+
+    def test_slot_runs_after_the_user_app_is_back_in_front(self):
+        import os
+        app, backend, engine = self._make_backend()
+        backend._ring_return_pid = self.USER_APP
+        # Mouser is in front after the click; the user app lands two polls later.
+        fronts = iter([os.getpid(), os.getpid(), os.getpid()])
+        front = unittest.mock.Mock(side_effect=lambda: next(fronts, self.USER_APP))
+        ran_with_front = []
+        engine.ring_toggle_select = lambda sector: ran_with_front.append(
+            (sector, front.side_effect()))
+        with (
+            patch("ui.backend.get_foreground_pid", front),
+            patch("ui.backend.activate_pid", return_value=True) as activate,
+        ):
+            backend._onRingActionSelected(1)
+            self.assertEqual(ran_with_front, [])  # waits for the switch
+            self._pump_until(app, lambda: ran_with_front)
+        activate.assert_called_once_with(self.USER_APP)
+        self.assertEqual(ran_with_front, [(1, self.USER_APP)])
+        self.assertIsNone(backend._ring_return_pid)
+
+    def test_slot_runs_at_once_when_focus_never_left(self):
+        _, backend, engine = self._make_backend()
+        backend._ring_return_pid = self.USER_APP
+        engine.ring_toggle_select = unittest.mock.Mock()
+        with (
+            patch("ui.backend.get_foreground_pid", return_value=self.USER_APP),
+            patch("ui.backend.activate_pid") as activate,
+        ):
+            backend._onRingActionSelected(2)
+        engine.ring_toggle_select.assert_called_once_with(2)
+        activate.assert_not_called()
+
+    def test_slot_still_runs_when_the_switch_never_lands(self):
+        import os
+        app, backend, engine = self._make_backend()
+        backend._ring_return_pid = self.USER_APP
+        engine.ring_toggle_dismiss = unittest.mock.Mock()
+        with (
+            patch("ui.backend.get_foreground_pid", return_value=os.getpid()),
+            patch("ui.backend.activate_pid", return_value=True),
+        ):
+            backend._onRingCancelled()
+            engine.ring_toggle_dismiss.assert_not_called()
+            self._pump_until(app, lambda: engine.ring_toggle_dismiss.called)
+        engine.ring_toggle_dismiss.assert_called_once_with()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1094,19 +1094,36 @@ class HoldShortcutEngineTests(unittest.TestCase):
             engine.reload_mappings()
         release.assert_called_once_with("hold:alt+tab")
 
-    def test_safety_timer_releases_when_up_never_arrives(self):
+    def test_a_long_hold_is_released_only_by_its_up(self):
+        """Push-to-talk holds last as long as the user talks; no timer may
+        let go of the keys before the button comes up."""
         engine, hook = self._make_engine({"xbutton1": "hold:ctrl+a"})
         with (
-            patch("core.engine.hold_action_press"),
+            patch("core.engine.hold_action_press") as press,
             patch("core.engine.hold_action_release") as release,
             patch("core.engine.threading.Timer") as timer,
         ):
             hook.fire("xbutton1_down")
-            timer.assert_called_once()
-            delay, fire_release = timer.call_args[0][:2]
-            self.assertGreaterEqual(delay, 5.0)
-            fire_release()
+            press.assert_called_once_with("hold:ctrl+a")
+            timer.assert_not_called()
+            release.assert_not_called()
+            hook.fire("xbutton1_up")
             release.assert_called_once_with("hold:ctrl+a")
-            # The safety release already let go; the late UP must not double-release.
+            # A second UP has nothing left to release.
             hook.fire("xbutton1_up")
             release.assert_called_once()
+
+    def test_a_repeated_down_releases_before_pressing_again(self):
+        engine, hook = self._make_engine({"xbutton1": "hold:ctrl+a"})
+        calls = []
+        with (
+            patch("core.engine.hold_action_press",
+                  side_effect=lambda a: calls.append(("press", a))),
+            patch("core.engine.hold_action_release",
+                  side_effect=lambda a: calls.append(("release", a))),
+        ):
+            hook.fire("xbutton1_down")
+            hook.fire("xbutton1_down")  # the first UP was lost
+            hook.fire("xbutton1_up")
+        self.assertEqual(calls, [("press", "hold:ctrl+a"), ("release", "hold:ctrl+a"),
+                                 ("press", "hold:ctrl+a"), ("release", "hold:ctrl+a")])

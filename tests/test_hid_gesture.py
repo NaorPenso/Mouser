@@ -974,9 +974,34 @@ class HidBoltReceiverTests(unittest.TestCase):
             self.assertTrue(listener.set_gesture_pointer_free(True))  # no rewrite
             self.assertTrue(listener.set_gesture_pointer_free(False))
         self.assertEqual(sent, [
-            (hid_gesture.LONG_ID, 0x0D, 3, [0x01, 0xA0, 0x03, 0x00, 0x00]),
+            # 0x23: divert on, rawXY off. Plain 0x03 leaves rawXY's valid bit
+            # clear, so the firmware keeps rawXY on and the cursor pinned.
+            (hid_gesture.LONG_ID, 0x0D, 3, [0x01, 0xA0, 0x23, 0x00, 0x00]),
             (hid_gesture.LONG_ID, 0x0D, 3, [0x01, 0xA0, 0x33, 0x00, 0x00]),
         ])
+
+    def test_flags_that_turn_rawxy_off_set_its_valid_bit(self):
+        # Each setCidReporting setting changes only with its valid bit set
+        # (value bit << 1); a flag meant to clear rawXY must carry 0x20.
+        rawxy, rawxy_valid = 0x10, 0x20
+        for name in ("_DIVERT_RAW_XY_OFF", "_UNDIVERT_RAW_XY"):
+            flags = getattr(hid_gesture, name)
+            with self.subTest(name):
+                self.assertEqual(flags & (rawxy | rawxy_valid), rawxy_valid)
+        self.assertEqual(hid_gesture._DIVERT_RAW_XY_OFF & 0x03, 0x03)
+
+    def test_thumb_release_turns_rawxy_off_on_the_thumb(self):
+        listener = self._pointer_listener()
+        listener._thumb_button_cid = 0x00C3
+        listener._thumb_rawxy_enabled = True
+        recorded = []
+        with patch.object(listener, "_set_cid_reporting",
+                          side_effect=lambda cid, flags: recorded.append((cid, flags)) or True):
+            listener._fire_thumb_button_down()
+            self.assertEqual(listener._rawxy_owner, "thumb")
+            listener._fire_thumb_button_up()
+        self.assertEqual(recorded, [(0x00C3, 0x33), (0x00C3, 0x23)])
+        self.assertEqual(listener._rawxy_owner, "gesture")
 
     def test_pointer_free_is_a_no_op_without_a_rawxy_divert(self):
         for attr, value in (("_rawxy_enabled", False), ("_rawxy_owner", "thumb"),

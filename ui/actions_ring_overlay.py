@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import sys
 
 from PySide6.QtCore import QPointF, QRectF, QTimer, Qt, Signal
 from PySide6.QtGui import (
@@ -121,6 +122,25 @@ def _ease_in(t: float) -> float:
     return t * t
 
 
+def _nonactivating_panel(widget):
+    """Turn ``widget``'s native macOS panel into one that never activates
+    Mouser and stays visible while another app is in front, and return it
+    (None if that fails). Only valid on the cocoa platform, where winId() is
+    an NSView pointer. Qt shows tool windows only while their app is
+    active, so without this the ring would have to activate Mouser to appear,
+    and Cmd+C from a ring slot would go to Mouser instead of the user's app."""
+    try:
+        import AppKit
+        import objc
+        panel = objc.objc_object(c_void_p=int(widget.winId())).window()
+        panel.setStyleMask_(panel.styleMask() | AppKit.NSWindowStyleMaskNonactivatingPanel)
+        panel.setHidesOnDeactivate_(False)
+        return panel
+    except Exception as exc:
+        print(f"[ActionsRing] non-activating panel unavailable: {exc}")
+        return None
+
+
 class ActionsRingOverlay(QWidget):
     """Radial pie-menu overlay with glassmorphism styling."""
 
@@ -138,6 +158,9 @@ class ActionsRingOverlay(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self._ns_window = (_nonactivating_panel(self)
+                           if sys.platform == "darwin"
+                           and QApplication.platformName() == "cocoa" else None)
 
         self._slot_labels: list[str] = []
         self._ring_diameter = 220
@@ -221,7 +244,12 @@ class ActionsRingOverlay(QWidget):
         self._center = QPointF(half + (wx - clamped_wx), half + (wy - clamped_wy))
 
         self.show()
-        self.raise_()
+        if self._ns_window is not None:
+            # raise_() would activate Mouser and take keyboard focus from the
+            # app the ring's shortcuts are meant for.
+            self._ns_window.orderFrontRegardless()
+        else:
+            self.raise_()
         self._tick_timer.start()
 
     def hide_ring(self) -> None:

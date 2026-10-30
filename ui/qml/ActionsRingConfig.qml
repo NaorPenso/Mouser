@@ -10,32 +10,9 @@ Item {
     property var s: lm.strings
     property int pendingCustomSlot: -1
 
-    Component {
-        id: ringActionComboDelegate
-        ItemDelegate {
-            width: parent ? parent.width : implicitWidth
-            highlighted: ListView.isCurrentItem
-            font { family: uiState.fontFamily; pixelSize: 11 }
-            contentItem: Text {
-                leftPadding: 10; rightPadding: 10
-                text: (lm.strings, lm.trAction(modelData ? modelData.label : ""))
-                font { family: uiState.fontFamily; pixelSize: 11 }
-                color: highlighted ? actionsRingConfig.theme.accent
-                                   : actionsRingConfig.theme.textPrimary
-                verticalAlignment: Text.AlignVCenter
-            }
-            background: Rectangle {
-                color: highlighted ? Qt.alpha(actionsRingConfig.theme.accent, 0.1) : "transparent"
-            }
-        }
-    }
-
-    function actionIndexForId(actionId) {
-        var actions = backend.allActions
-        for (var i = 0; i < actions.length; i++)
-            if (actions[i].id === actionId) return i
-        return 0
-    }
+    // Slot whose accordion is open; opening one closes the others, the way
+    // a dropdown does.
+    property int openSlot: -1
 
     function rebuildSlots(slotIndex, newActionId) {
         var current = backend.actionsRingSlots
@@ -364,49 +341,35 @@ Item {
                     Repeater {
                         model: 4
 
-                        delegate: RowLayout {
+                        delegate: ActionAccordion {
+                            id: slotPicker
+                            required property int index
                             width: slotsContent.width
-                            spacing: 12
-
-                            Text {
-                                text: (s["ring.slot_prefix"] || "Slot ") + (index + 1)
-                                Layout.preferredWidth: 60
-                                font {
-                                    family: uiState.fontFamily
-                                    pixelSize: 12
-                                    bold: true
-                                }
-                                color: actionsRingConfig.theme.textPrimary
+                            title: (s["ring.slot_prefix"] || "Slot ") + (index + 1)
+                            namePrefix: "ringSlot" + index
+                            actionId: {
+                                var slots = backend.actionsRingSlots
+                                return (slots && index < slots.length) ? slots[index] : "none"
+                            }
+                            onExpandedChanged: {
+                                if (expanded)
+                                    actionsRingConfig.openSlot = index
+                                else if (actionsRingConfig.openSlot === index)
+                                    actionsRingConfig.openSlot = -1
+                            }
+                            onPicked: function(aid) {
+                                actionsRingConfig.rebuildSlots(index, aid)
+                            }
+                            onCustomRequested: {
+                                actionsRingConfig.pendingCustomSlot = index
+                                ringKeyCaptureDialog.open("", "")
                             }
 
-                            ComboBox {
-                                Layout.fillWidth: true
-                                model: backend.allActions
-                                textRole: "label"
-                                delegate: ringActionComboDelegate
-                                Material.accent: actionsRingConfig.theme.accent
-                                font { family: uiState.fontFamily; pixelSize: 11 }
-                                currentIndex: {
-                                    var slots = backend.actionsRingSlots
-                                    var aid = (slots && index < slots.length)
-                                              ? slots[index] : "none"
-                                    return actionsRingConfig.actionIndexForId(aid)
-                                }
-                                displayText: {
-                                    var slots = backend.actionsRingSlots
-                                    var aid = (slots && index < slots.length)
-                                              ? slots[index] : "none"
-                                    return (lm.strings,
-                                            lm.trAction(backend.actionLabelFor(aid)))
-                                }
-                                onActivated: function(idx) {
-                                    var aid = backend.allActions[idx].id
-                                    if (aid === "__custom__") {
-                                        actionsRingConfig.pendingCustomSlot = index
-                                        ringKeyCaptureDialog.open("", "")
-                                        return
-                                    }
-                                    actionsRingConfig.rebuildSlots(index, aid)
+                            Connections {
+                                target: actionsRingConfig
+                                function onOpenSlotChanged() {
+                                    if (actionsRingConfig.openSlot !== slotPicker.index)
+                                        slotPicker.expanded = false
                                 }
                             }
                         }
