@@ -93,7 +93,10 @@ Item {
 
     // Double press: the second action of the selected button ("<btn>_double").
     property string selectedDoubleActionId: "none"
-    onSelectedButtonChanged: refreshDoubleAction()
+    onSelectedButtonChanged: {
+        refreshDoubleAction()
+        doublePressPicker.expanded = false
+    }
 
     function refreshDoubleAction() {
         selectedDoubleActionId = selectedButton !== ""
@@ -2042,60 +2045,18 @@ Item {
 
                                 Rectangle { width: parent.width; height: 1; color: theme.border }
 
-                                RowLayout {
+                                DoublePressPicker {
+                                    id: doublePressPicker
+                                    objectName: "doublePressPicker"
                                     width: parent.width
-                                    spacing: 8
-
-                                    Text {
-                                        text: s["mouse.double_press"]
-                                        Layout.fillWidth: true
-                                        font { family: uiState.fontFamily; pixelSize: 11;
-                                               capitalization: Font.AllUppercase; letterSpacing: 1 }
-                                        color: theme.textDim
-                                    }
-
-                                    Text {
-                                        text: (backend.doublePressMode === "wait"
-                                               ? s["mouse.double_press_mode_wait"]
-                                               : s["mouse.double_press_mode_instant"])
-                                              + " \u00b7 " + backend.doublePressWindowMs + " ms"
-                                        font { family: uiState.fontFamily; pixelSize: 11 }
-                                        color: theme.textSecondary
-                                    }
-                                }
-
-                                Text {
-                                    width: parent.width
-                                    wrapMode: Text.WordWrap
-                                    text: s["mouse.double_press_hint"]
-                                    font { family: uiState.fontFamily; pixelSize: 12 }
-                                    color: theme.textSecondary
-                                }
-
-                                ComboBox {
-                                    id: doublePressCombo
-                                    objectName: "doublePressCombo"
-                                    width: parent.width
-                                    model: backend.allActions
-                                    textRole: "label"
-                                    delegate: actionComboDelegate
-                                    Material.accent: theme.accent
-                                    font { family: uiState.fontFamily; pixelSize: 11 }
-                                    currentIndex: actionIndexForId(selectedDoubleActionId)
-                                    displayText: isCustomAction(selectedDoubleActionId)
-                                                 ? customLabel(selectedDoubleActionId)
-                                                 : (lm.strings, lm.trAction(currentText))
-                                    onActivated: function(index) {
-                                        var aid = backend.allActions[index].id
-                                        if (aid === "__custom__") {
-                                            keyCaptureDialog.open(
-                                                selectedProfile, selectedButton + "_double",
-                                                backend.isHoldAction(selectedDoubleActionId))
-                                            return
-                                        }
+                                    actionId: selectedDoubleActionId
+                                    onPicked: function(aid) {
                                         backend.setProfileMapping(
                                             selectedProfile, selectedButton + "_double", aid)
                                     }
+                                    onCustomRequested: keyCaptureDialog.open(
+                                        selectedProfile, selectedButton + "_double",
+                                        backend.isHoldAction(selectedDoubleActionId))
                                 }
                             }
 

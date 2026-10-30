@@ -134,19 +134,33 @@ def main():
         # ── Button panel ────────────────────────────────────────────
         engine, window, page = _load("MousePage", backend, ui_state, locale)
         page.setProperty("selectedButton", "xbutton2")
+        # The action panel animates open (250 ms height Behavior); click only
+        # once it has settled, or the click lands where the header used to be.
+        QTest.qWait(600)
         _settle()
-        section = page.findChild(QObject, "doublePressSection")
-        combo = page.findChild(QObject, "doublePressCombo")
-        report["section_visible_forward"] = bool(section.property("visible"))
-        report["combo_text_forward"] = combo.property("displayText")
-        actions = backend.allActions
-        copy_index = next(i for i, a in enumerate(actions) if a["id"] == "copy")
-        QMetaObject.invokeMethod(combo, "activated", Q_ARG(int, copy_index))
-        _settle()
+        section = _find_item(page, "doublePressSection")
+        header = _find_item(page, "doublePressHeader")
+        body = _find_item(page, "doublePressBody")
+        current = _find_item(page, "doublePressCurrent")
+        report["section_visible_forward"] = section.isVisible()
+        report["current_forward"] = current.property("text")
+        report["body_visible_collapsed"] = body.isVisible()
+        _click(window, header)
+        report["body_visible_expanded"] = body.isVisible()
+        paste_chip = _find_item(page, "doublePressChip_paste")
+        report["current_category_open"] = paste_chip.isVisible()
+        copy_category = next(c["category"] for c in backend.actionCategories
+                             if any(a["id"] == "copy" for a in c["actions"]))
+        copy_chip = _find_item(page, "doublePressChip_copy")
+        if not copy_chip.isVisible():
+            _click(window, _find_item(page, "doublePressCategory_" + copy_category))
+        _click(window, copy_chip)
         report["double_after_pick"] = backend.doublePressActionFor("default", "xbutton2")
-        report["combo_text_after_pick"] = combo.property("displayText")
+        report["current_after_pick"] = current.property("text")
         report["single_after_pick"] = (
             backend._cfg["profiles"]["default"]["mappings"]["xbutton2"])
+        _click(window, header)
+        report["body_visible_recollapsed"] = body.isVisible()
         page.setProperty("selectedButton", "hscroll_left")
         _settle()
         report["section_visible_hscroll"] = bool(section.property("visible"))

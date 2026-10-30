@@ -52,14 +52,20 @@ class DoublePressUiTests(unittest.TestCase):
         self.assertLessEqual(window, 1000)
         self.assertEqual(r["window_label"], f"{window} ms")
 
-    def test_button_panel_edits_the_double_action_only(self):
+    def test_button_panel_is_an_accordion_that_edits_the_double_action(self):
         r = self.report
         self.assertTrue(r["section_visible_forward"])
-        self.assertTrue(r["combo_text_forward"].startswith("Paste"))
+        self.assertTrue(r["current_forward"].startswith("Paste"))
+        # Collapsed until the header is clicked, then the category holding
+        # the current action is already open.
+        self.assertFalse(r["body_visible_collapsed"])
+        self.assertTrue(r["body_visible_expanded"])
+        self.assertTrue(r["current_category_open"])
         self.assertEqual(r["double_after_pick"], "copy")
-        self.assertTrue(r["combo_text_after_pick"].startswith("Copy"))
+        self.assertTrue(r["current_after_pick"].startswith("Copy"))
         # Picking the double action leaves the button's own action alone.
         self.assertEqual(r["single_after_pick"], "mouse_forward_click")
+        self.assertFalse(r["body_visible_recollapsed"])
 
     def test_section_is_hidden_for_buttons_without_a_release(self):
         self.assertFalse(self.report["section_visible_hscroll"])
