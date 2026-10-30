@@ -1,4 +1,4 @@
-"""Drive the real action and double-press UI offscreen and report what happened as JSON.
+"""Drive the real action, double-press and Actions Ring pickers offscreen and report what happened as JSON.
 
 Run by tests/test_double_press_ui.py in a subprocess: QML needs a
 QApplication, and other tests in the same process create a
@@ -190,6 +190,26 @@ def main():
         page.setProperty("selectedButton", "hscroll_left")
         _settle()
         report["section_visible_hscroll"] = bool(section.property("visible"))
+        engine.deleteLater()
+        _settle()
+
+        # ── Actions Ring slots: one accordion per slot, one open at once ─
+        engine, window, page = _load("ActionsRingConfig", backend, ui_state, locale)
+        slot1_header = _find_item(page, "ringSlot1Header")
+        slot1_body = _find_item(page, "ringSlot1Body")
+        report["ring_slot1_collapsed"] = not slot1_body.isVisible()
+        _click(window, slot1_header)
+        report["ring_slot1_expanded"] = slot1_body.isVisible()
+        copy_chip = _find_item(page, "ringSlot1Chip_copy")
+        if not copy_chip.isVisible():
+            _click(window, _find_item(page, "ringSlot1Category_" + copy_category))
+        _click(window, copy_chip)
+        report["ring_slots_after_pick"] = list(backend.actionsRingSlots)
+        report["ring_slot1_current"] = _find_item(
+            page, "ringSlot1Current").property("text")
+        _click(window, _find_item(page, "ringSlot2Header"))
+        report["ring_slot2_expanded"] = _find_item(page, "ringSlot2Body").isVisible()
+        report["ring_slot1_closed_by_slot2"] = not slot1_body.isVisible()
         engine.deleteLater()
         _settle()
 

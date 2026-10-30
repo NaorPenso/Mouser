@@ -1,4 +1,4 @@
-"""Integration test for the action and double-press accordions.
+"""Integration test for the action, double-press and Actions Ring accordions.
 
 Runs tests/_double_press_ui_probe.py in a subprocess: it loads the real
 Settings page and Mouse page offscreen with a real Backend, clicks the
@@ -78,6 +78,15 @@ class DoublePressUiTests(unittest.TestCase):
         # Picking the button's action leaves its double action alone.
         self.assertEqual(r["double_after_action_pick"], "copy")
         self.assertTrue(r["action_body_collapsed_on_new_button"])
+
+    def test_ring_slots_are_accordions_with_one_open_at_a_time(self):
+        r = self.report
+        self.assertTrue(r["ring_slot1_collapsed"])
+        self.assertTrue(r["ring_slot1_expanded"])
+        self.assertEqual(r["ring_slots_after_pick"][1], "copy")
+        self.assertTrue(r["ring_slot1_current"].startswith("Copy"))
+        self.assertTrue(r["ring_slot2_expanded"])
+        self.assertTrue(r["ring_slot1_closed_by_slot2"])
 
     def test_section_is_hidden_for_buttons_without_a_release(self):
         self.assertFalse(self.report["section_visible_hscroll"])
