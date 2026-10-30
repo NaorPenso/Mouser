@@ -113,5 +113,39 @@ class KeyRegistryParsingTests(unittest.TestCase):
         self.assertEqual(key_registry.pretty_key_name("alt", platform_name="linux"), "Alt")
 
 
+class FnKeyTests(unittest.TestCase):
+    """Fn (the Globe key) is a macOS modifier that apps such as Wispr Flow
+    use on its own as a push-to-talk key."""
+
+    def test_fn_alone_is_a_complete_shortcut(self):
+        self.assertEqual(
+            key_registry.canonical_shortcut_text("fn", platform_name="darwin"),
+            "fn",
+        )
+        self.assertEqual(key_registry.canonical_shortcut_text("Globe"), "fn")
+
+    def test_fn_orders_before_the_other_modifiers(self):
+        self.assertEqual(
+            key_registry.canonical_shortcut_text("shift+fn+f1", platform_name="darwin"),
+            "fn+shift+f1",
+        )
+
+    def test_other_lone_modifiers_still_need_a_main_key(self):
+        for text in ("alt", "fn+ctrl"):
+            with self.subTest(text=text):
+                with self.assertRaises(key_registry.ShortcutParseError):
+                    key_registry.canonical_shortcut_text(text)
+
+    def test_fn_uses_the_macos_function_keycode_and_only_exists_on_macos(self):
+        macos = key_registry.build_key_name_to_code_map(platform_name="darwin")
+        self.assertEqual(macos["fn"], 0x3F)
+        self.assertEqual(key_registry.pretty_key_name("fn", platform_name="darwin"), "Fn")
+        for platform_name in ("win32", "linux"):
+            with self.subTest(platform=platform_name):
+                with self.assertRaises(key_registry.ShortcutParseError) as ctx:
+                    key_registry.canonical_shortcut_text("fn", platform_name=platform_name)
+                self.assertEqual(ctx.exception.code, "unsupported_key")
+
+
 if __name__ == "__main__":
     unittest.main()

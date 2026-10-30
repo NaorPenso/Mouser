@@ -198,7 +198,7 @@ _TRANSLATIONS = {
         "key_capture.type_hint": "Type the shortcut with + between keys, e.g. super+shift+f5.",
         "key_capture.mode_type": "Type instead",
         "key_capture.mode_record": "Record keys",
-        "key_capture.valid_keys": "Valid keys: ctrl/control, shift, alt/option/opt, super (aliases: cmd, command, meta, win, windows),\n0\u20139, a\u2013z, f1\u2013f24, space, tab, enter, esc, left, right, up, down, delete, ...",
+        "key_capture.valid_keys": "Valid keys: ctrl/control, shift, alt/option/opt, super (aliases: cmd, command, meta, win, windows), fn/globe (macOS, works alone; type it, it cannot be recorded),\n0\u20139, a\u2013z, f1\u2013f24, space, tab, enter, esc, left, right, up, down, delete, ...",
         "key_capture.reserved_warning": "The operating system may intercept this shortcut. It can still be saved, but behavior may vary by system.",
         "key_capture.error.unsupported_key": "Choose a different key. %1 isn't available in Mouser.",
         "key_capture.error.unknown_key": "We don't recognize: %1.",

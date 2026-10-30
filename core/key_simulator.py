@@ -799,6 +799,7 @@ elif sys.platform == "darwin":
     kVK_Shift = 0x38
     kVK_Option = 0x3A
     kVK_Control = 0x3B
+    kVK_Function = 0x3F
     kVK_Tab = 0x30
     kVK_Space = 0x31
     kVK_Return = 0x24
@@ -946,6 +947,7 @@ elif sys.platform == "darwin":
         kVK_Shift: Quartz.kCGEventFlagMaskShift if _QUARTZ_OK else 0,
         kVK_Option: Quartz.kCGEventFlagMaskAlternate if _QUARTZ_OK else 0,
         kVK_Control: Quartz.kCGEventFlagMaskControl if _QUARTZ_OK else 0,
+        kVK_Function: Quartz.kCGEventFlagMaskSecondaryFn if _QUARTZ_OK else 0,
     }
 
     def _modifier_flags(keys):
@@ -962,6 +964,10 @@ elif sys.platform == "darwin":
         flags = _modifier_flags(keys)
         for k in keys:
             ev = Quartz.CGEventCreateKeyboardEvent(None, k, True)
+            if k == kVK_Function:
+                # Fn has no key-down of its own: macOS reports it as a
+                # modifier-flag change carrying the SecondaryFn flag.
+                Quartz.CGEventSetType(ev, Quartz.kCGEventFlagsChanged)
             if flags:
                 Quartz.CGEventSetFlags(ev, flags)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, ev)
@@ -973,6 +979,10 @@ elif sys.platform == "darwin":
             return
         for k in reversed(keys):
             ev = Quartz.CGEventCreateKeyboardEvent(None, k, False)
+            if k == kVK_Function:
+                # Fn sorts first, so it is released last: clear every flag.
+                Quartz.CGEventSetType(ev, Quartz.kCGEventFlagsChanged)
+                Quartz.CGEventSetFlags(ev, 0)
             Quartz.CGEventPost(Quartz.kCGHIDEventTap, ev)
 
     @_autoreleased

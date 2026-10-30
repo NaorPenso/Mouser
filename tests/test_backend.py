@@ -1117,5 +1117,19 @@ class BackendHoldShortcutTests(unittest.TestCase):
         self.assertTrue(backend.actionLabelFor("hold:ctrl+a").endswith("(Hold)"))
 
 
+    def test_fn_alone_is_accepted_by_the_shortcut_dialog_on_macos(self):
+        backend = self._make_backend()
+        with patch.object(sys, "platform", "darwin"):
+            self.assertEqual(backend.canonicalizeCustomShortcut("fn"), "fn")
+            self.assertEqual(backend.customShortcutValidationErrorInfo("fn"), {})
+            self.assertEqual(backend.displayShortcutKeyName("fn"), "Fn")
+        with patch.object(sys, "platform", "win32"):
+            self.assertEqual(backend.canonicalizeCustomShortcut("fn"), "")
+        self.assertTrue(backend.actionLabelFor("hold:fn").startswith("Fn"))
+
+    def test_shortcut_dialog_lists_fn_as_a_typed_key(self):
+        from ui.locale_manager import _TRANSLATIONS
+        self.assertIn("fn/globe", _TRANSLATIONS["en"]["key_capture.valid_keys"])
+
 if __name__ == "__main__":
     unittest.main()

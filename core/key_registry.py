@@ -11,7 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-MODIFIER_ORDER = ("ctrl", "shift", "alt", "super")
+MODIFIER_ORDER = ("fn", "ctrl", "shift", "alt", "super")
+# Modifiers that are a complete shortcut on their own. Fn (the macOS Globe
+# key) is held by itself as a push-to-talk key in dictation apps.
+STANDALONE_MODIFIERS = (("fn",),)
 MODIFIER_ALIASES = {
     "control": "ctrl",
     "option": "alt",
@@ -21,6 +24,8 @@ MODIFIER_ALIASES = {
     "meta": "super",
     "win": "super",
     "windows": "super",
+    "globe": "fn",
+    "function": "fn",
 }
 KEY_ALIASES = {
     "return": "enter",
@@ -163,6 +168,8 @@ def _function_keys():
 
 
 KEY_SPECS = (
+    # macOS only: kVK_Function. Windows and Linux expose no Fn key to software.
+    KeySpec("fn", "Fn", aliases=("globe", "function"), macos_keycode=0x3F),
     KeySpec("ctrl", "Ctrl", aliases=("control",), windows_vk=0x11, macos_keycode=0x3B, linux_keycode=29),
     KeySpec("shift", "Shift", windows_vk=0x10, macos_keycode=0x38, linux_keycode=42),
     KeySpec("alt", "Alt", aliases=("option", "opt"), windows_vk=0x12, macos_keycode=0x3A, linux_keycode=56),
@@ -262,10 +269,11 @@ def parse_shortcut_text(text: str, *, allow_modifier_only: bool = False) -> tupl
             )
         key_name = canonical
 
-    if not key_name and not allow_modifier_only:
+    ordered_modifiers = [name for name in MODIFIER_ORDER if name in modifiers]
+    if (not key_name and not allow_modifier_only
+            and tuple(ordered_modifiers) not in STANDALONE_MODIFIERS):
         raise ShortcutParseError("Need at least one non-modifier key", code="missing_main_key")
 
-    ordered_modifiers = [name for name in MODIFIER_ORDER if name in modifiers]
     if key_name:
         return tuple([*ordered_modifiers, key_name])
     return tuple(ordered_modifiers)

@@ -583,6 +583,43 @@ class HoldShortcutTests(unittest.TestCase):
             key_simulator.release_key_combo([58, 50])
         self.assertEqual(posted, [("ev", 50, False), ("ev", 58, False)])
 
+    @unittest.skipUnless(sys.platform == "darwin", "macOS key injection")
+    def test_macos_fn_is_posted_as_a_modifier_flag_change(self):
+        # macOS has no key-down for Fn: it is a flags-changed event carrying
+        # the SecondaryFn flag on press and no flags on release.
+        fake_quartz = unittest.mock.MagicMock()
+        fake_quartz.kCGEventFlagsChanged = 12
+        fake_quartz.kCGEventFlagMaskSecondaryFn = 0x800000
+        events = []
+
+        def create(_src, code, down):
+            ev = {"code": code, "down": down, "type": "key", "flags": None}
+            events.append(ev)
+            return ev
+
+        fake_quartz.CGEventCreateKeyboardEvent.side_effect = create
+        fake_quartz.CGEventSetType.side_effect = lambda ev, t: ev.update(type=t)
+        fake_quartz.CGEventSetFlags.side_effect = lambda ev, f: ev.update(flags=f)
+        with patch.object(key_simulator, "Quartz", fake_quartz), \
+             patch.object(key_simulator, "_QUARTZ_OK", True), \
+             patch.dict(key_simulator._MOD_FLAGS,
+                        {key_simulator.kVK_Function: 0x800000}):
+            key_simulator.press_key_combo([0x3F])
+            key_simulator.release_key_combo([0x3F])
+        self.assertEqual(events, [
+            {"code": 0x3F, "down": True, "type": 12, "flags": 0x800000},
+            {"code": 0x3F, "down": False, "type": 12, "flags": 0},
+        ])
+
+    @unittest.skipUnless(sys.platform == "darwin", "macOS key injection")
+    def test_macos_hold_fn_action_presses_the_function_key(self):
+        with patch.object(key_simulator, "press_key_combo") as press, \
+             patch.object(key_simulator, "release_key_combo") as release:
+            key_simulator.hold_action_press("hold:fn")
+            key_simulator.hold_action_release("hold:fn")
+        press.assert_called_once_with([0x3F])
+        release.assert_called_once_with([0x3F])
+
     def test_hold_action_press_and_release_use_the_parsed_combo(self):
         with patch.object(key_simulator, "press_key_combo") as press, \
              patch.object(key_simulator, "release_key_combo") as release, \

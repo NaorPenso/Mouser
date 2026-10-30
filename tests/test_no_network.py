@@ -152,7 +152,7 @@ class DependencyPinningTests(unittest.TestCase):
             line = line.split("#", 1)[0].strip()
             if not line:
                 continue
-            name = re.split(r"[<>=!;\s]", line, 1)[0].lower().replace("_", "-")
+            name = re.split(r"[<>=!;\s]", line, maxsplit=1)[0].lower().replace("_", "-")
             with self.subTest(requirement=name):
                 self.assertIn(name, pinned, f"{name} is not pinned in requirements.lock")
 
