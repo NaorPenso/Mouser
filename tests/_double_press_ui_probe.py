@@ -213,6 +213,16 @@ def main():
         engine.deleteLater()
         _settle()
 
+    # ── Ring overlay: the native panel is set up only on cocoa ────────
+    from ui.actions_ring_overlay import ActionsRingOverlay
+    overlay = ActionsRingOverlay()
+    overlay.show_ring(200, 200, ["Copy", "Paste", "Cut", "Undo"], interactive=True)
+    _settle()
+    report["overlay_platform"] = QApplication.platformName()
+    report["overlay_native_panel"] = overlay._ns_window is not None
+    report["overlay_visible"] = overlay.isVisible()
+    overlay.hide()
+
     report["saved"] = [
         {
             "double_press_mode": c["settings"].get("double_press_mode"),

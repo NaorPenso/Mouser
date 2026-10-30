@@ -13,6 +13,7 @@ from pathlib import Path
 from PySide6.QtCore import QCoreApplication, QMetaObject, QObject, Property, QTimer, Signal, Slot, Qt, QUrl
 
 from core.accessibility import is_process_trusted
+from core.app_detector import activate_pid, get_foreground_pid
 from core.config import (
     button_supports_hold,
     BUTTON_NAMES, load_config, save_config, get_active_mappings,
@@ -308,6 +309,7 @@ class Backend(QObject):
 
         self._ring_overlay = None  # created lazily on first show
         self._ring_visible = False  # thread-safe flag (avoids Qt isVisible() off main thread)
+        self._ring_return_pid = None  # app in front when the ring opened
         self._ring_edit_profile = ""  # profile targeted by the ring editor (per-app mode)
 
         # List-property cache invalidation. Each notify signal maps to the
@@ -1842,6 +1844,8 @@ class Backend(QObject):
             self._ring_overlay.action_selected.connect(self._onRingActionSelected)
             self._ring_overlay.cancelled.connect(self._onRingCancelled)
             self._ring_overlay.sector_changed.connect(self._onRingSectorChanged)
+        front = get_foreground_pid()
+        self._ring_return_pid = front if front != os.getpid() else None
         pos = QCursor.pos()
         self._ring_overlay.show_ring(pos.x(), pos.y(), labels, interactive=interactive)
         self._ring_visible = True
@@ -1857,13 +1861,40 @@ class Backend(QObject):
     def _onRingActionSelected(self, sector):
         """Overlay click on a sector in toggle mode."""
         if self._engine:
-            self._engine.ring_toggle_select(sector)
+            self._after_returning_focus(lambda: self._engine.ring_toggle_select(sector))
 
     @Slot()
     def _onRingCancelled(self):
         """Overlay click on center X or outside ring in toggle mode."""
         if self._engine:
-            self._engine.ring_toggle_dismiss()
+            self._after_returning_focus(self._engine.ring_toggle_dismiss)
+
+    _RING_FOCUS_POLL_MS = 20
+    _RING_FOCUS_MAX_POLLS = 25  # give up waiting after ~0.5 s and run anyway
+
+    def _after_returning_focus(self, run):
+        """Run ``run`` once the app that was in front when the ring opened is
+        in front again. On macOS, clicking the overlay brings Mouser to the
+        front, and a shortcut such as Cmd+C sent then would go to Mouser
+        instead of the user's app. The switch back lands asynchronously, so
+        it is polled on the Qt loop rather than waited for in place."""
+        pid, self._ring_return_pid = self._ring_return_pid, None
+        if pid is None or get_foreground_pid() != os.getpid() or not activate_pid(pid):
+            run()
+            return
+        polls = [0]
+
+        def check():
+            polls[0] += 1
+            if get_foreground_pid() == pid or polls[0] >= self._RING_FOCUS_MAX_POLLS:
+                timer.stop()
+                timer.deleteLater()
+                run()
+
+        timer = QTimer(self)
+        timer.setInterval(self._RING_FOCUS_POLL_MS)
+        timer.timeout.connect(check)
+        timer.start()
 
     @Slot(int)
     def _onRingSectorChanged(self, sector):

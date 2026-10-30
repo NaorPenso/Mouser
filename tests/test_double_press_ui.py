@@ -88,6 +88,13 @@ class DoublePressUiTests(unittest.TestCase):
         self.assertTrue(r["ring_slot2_expanded"])
         self.assertTrue(r["ring_slot1_closed_by_slot2"])
 
+    def test_ring_overlay_skips_the_native_panel_off_cocoa(self):
+        # winId() is only an NSView on cocoa; elsewhere it must not be touched.
+        r = self.report
+        self.assertEqual(r["overlay_platform"], "offscreen")
+        self.assertFalse(r["overlay_native_panel"])
+        self.assertTrue(r["overlay_visible"])
+
     def test_section_is_hidden_for_buttons_without_a_release(self):
         self.assertFalse(self.report["section_visible_hscroll"])
 

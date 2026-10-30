@@ -3,6 +3,9 @@ Foreground application detector — polls the active window and fires
 a callback when the foreground app changes.
 Windows: GetForegroundWindow + QueryFullProcessImageNameW (with UWP resolution).
 macOS:   NSWorkspace.sharedWorkspace().frontmostApplication().
+
+On macOS it can also hand the foreground back to an app (get_foreground_pid,
+activate_pid), for overlays that must not keep keyboard focus.
 """
 
 import functools
@@ -357,6 +360,28 @@ elif sys.platform == "darwin":
         except Exception:
             return ()
 
+    @_autoreleased
+    def get_foreground_pid() -> int | None:
+        """Process id of the frontmost app, or None."""
+        try:
+            from AppKit import NSWorkspace
+            app = NSWorkspace.sharedWorkspace().frontmostApplication()
+            return int(app.processIdentifier()) if app is not None else None
+        except Exception:
+            return None
+
+    @_autoreleased
+    def activate_pid(pid: int) -> bool:
+        """Bring the app with process id ``pid`` to the front. The switch
+        completes asynchronously; poll get_foreground_pid to see it land."""
+        try:
+            from AppKit import NSApplicationActivateIgnoringOtherApps, NSRunningApplication
+            app = NSRunningApplication.runningApplicationWithProcessIdentifier_(pid)
+            return bool(app is not None
+                        and app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps))
+        except Exception:
+            return False
+
 elif sys.platform == "linux":
     import subprocess as _subprocess
 
@@ -414,6 +439,16 @@ elif sys.platform == "linux":
 else:
     def get_foreground_app_identity() -> tuple[str, ...]:
         return ()
+
+
+if sys.platform != "darwin":
+    # Handing the foreground back after an overlay click is only needed on
+    # macOS, where clicking any window of an app brings that app to the front.
+    def get_foreground_pid() -> int | None:
+        return None
+
+    def activate_pid(pid: int) -> bool:
+        return False
 
 
 class AppDetector:
