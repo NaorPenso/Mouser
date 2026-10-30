@@ -29,6 +29,7 @@ counts as a long press).
 from __future__ import annotations
 
 import threading
+import time
 
 DOUBLE_PRESS_MODES = ("instant", "wait")
 DEFAULT_DOUBLE_PRESS_MODE = "instant"
@@ -63,7 +64,7 @@ class DoublePressDetector:
     def __init__(self, *, single_down, single_up, double_down, double_up,
                  window_ms=DEFAULT_DOUBLE_PRESS_WINDOW_MS,
                  mode=DEFAULT_DOUBLE_PRESS_MODE, cancel_single=None,
-                 timer_factory=None):
+                 timer_factory=None, name="button", clock=None):
         self._single_down = single_down or _noop
         self._single_up = single_up or _noop
         self._double_down = double_down or _noop
@@ -77,6 +78,10 @@ class DoublePressDetector:
         self._timer = None
         self._first_down_event = None
         self._first_up_event = None
+        self._name = name
+        self._clock = clock or time.monotonic
+        self._last_down_at = None
+        self._last_up_at = None
 
     @property
     def state(self):
@@ -89,6 +94,10 @@ class DoublePressDetector:
     def on_down(self, event):
         calls = []
         with self._lock:
+            now = self._clock()
+            gap = self._ms_since(self._last_up_at, now)
+            self._last_down_at = now
+            prior = self._state
             if self._state == self.IDLE:
                 self._state = self.FIRST_DOWN
                 if self._mode == "instant":
@@ -104,11 +113,20 @@ class DoublePressDetector:
                 calls.append(lambda f=self._double_down, e=event: f(e))
             # A down while already down (lost release) is ignored; the
             # release that eventually arrives resolves the press.
+            outcome = {
+                self.IDLE: "first press" + (" -> single" if self._mode == "instant" else ""),
+                self.ARMED: "second press -> double",
+            }.get(prior, f"ignored (already {prior})")
+        self._log(f"down {outcome}; {gap} since last release")
         self._run(calls)
 
     def on_up(self, event):
         calls = []
         with self._lock:
+            now = self._clock()
+            held = self._ms_since(self._last_down_at, now)
+            self._last_up_at = now
+            prior = self._state
             if self._state == self.FIRST_DOWN:
                 if self._mode == "instant":
                     calls.append(lambda f=self._single_up, e=event: f(e))
@@ -123,6 +141,12 @@ class DoublePressDetector:
             elif self._state == self.SECOND_DOWN:
                 self._state = self.IDLE
                 calls.append(lambda f=self._double_up, e=event: f(e))
+            outcome = {
+                self.FIRST_DOWN: "first release, waiting for a second press",
+                self.SINGLE_HELD: "release of the long press",
+                self.SECOND_DOWN: "release of the double",
+            }.get(prior, f"ignored (in {prior})")
+        self._log(f"up {outcome}; held {held}")
         self._run(calls)
 
     def shutdown(self):
@@ -142,6 +166,7 @@ class DoublePressDetector:
                 return
             self._timer = None
             self._state = self.SINGLE_HELD
+            self._log("long first press -> single")
             calls.append(lambda f=self._single_down, e=self._first_down_event: f(e))
             self._first_down_event = None
         self._run(calls)
@@ -153,6 +178,8 @@ class DoublePressDetector:
                 return
             self._timer = None
             self._state = self.IDLE
+            self._log("window passed, no second press"
+                      + (" -> single" if self._mode == "wait" else ""))
             if self._mode == "wait":
                 # No second press came: the held-back click was a single.
                 calls.append(lambda f=self._single_down, e=self._first_down_event: f(e))
@@ -174,6 +201,15 @@ class DoublePressDetector:
         if self._timer is not None:
             self._timer.cancel()
             self._timer = None
+
+    @staticmethod
+    def _ms_since(then, now):
+        return "n/a" if then is None else f"{(now - then) * 1000:.0f} ms"
+
+    def _log(self, message):
+        # One line per decision, in the app log, so a misread press can be
+        # traced from the timings the detector actually saw.
+        print(f"[DoublePress] {self._name}: {message}")
 
     @staticmethod
     def _run(calls):

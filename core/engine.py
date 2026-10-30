@@ -649,6 +649,7 @@ class Engine:
             cancel_single=cancel_single,
             window_ms=settings.get("double_press_window_ms"),
             mode=settings.get("double_press_mode"),
+            name=btn_key,
         )
         self._double_press_detectors.append(detector)
         for evt_type in (*native_events, down_evt, up_evt):
@@ -729,6 +730,10 @@ class Engine:
                 and self.hook.set_gesture_pointer_free(True)):
             self._pointer_freed_holds.add(action_id)
         hold_action_press(action_id)
+        # No key names in the log (least-privilege rule); the button and the
+        # pointer state are enough to trace a push-to-talk hold.
+        print(f"[Engine] held shortcut down on {btn_key or 'button'}"
+              f"{' (pointer released)' if action_id in self._pointer_freed_holds else ''}")
 
         def _safety_release():
             print(f"[Engine] SAFETY RELEASE fired for {action_id} (UP never received)")
@@ -745,6 +750,7 @@ class Engine:
             return  # not held, or already let go by the safety timer
         timer.cancel()
         hold_action_release(action_id)
+        print("[Engine] held shortcut up")
         if action_id in self._pointer_freed_holds:
             self._pointer_freed_holds.discard(action_id)
             if not self._pointer_freed_holds:
