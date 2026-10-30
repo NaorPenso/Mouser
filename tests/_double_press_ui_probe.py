@@ -1,4 +1,4 @@
-"""Drive the real double-press UI offscreen and report what happened as JSON.
+"""Drive the real action and double-press UI offscreen and report what happened as JSON.
 
 Run by tests/test_double_press_ui.py in a subprocess: QML needs a
 QApplication, and other tests in the same process create a
@@ -71,7 +71,8 @@ def _load(page_type, backend, ui_state, locale):
     engine.warnings.connect(
         lambda warnings: report["qml_errors"].extend(
             w.toString() for w in warnings
-            if "doublePress" in w.toString() or "double_press" in w.toString()
+            if any(k in w.toString()
+                   for k in ("doublePress", "double_press", "ActionAccordion"))
         )
     )
     ctx = engine.rootContext()
@@ -161,6 +162,31 @@ def main():
             backend._cfg["profiles"]["default"]["mappings"]["xbutton2"])
         _click(window, header)
         report["body_visible_recollapsed"] = body.isVisible()
+
+        # ── Main action: the same accordion ─────────────────────────
+        a_header = _find_item(page, "actionHeader")
+        a_body = _find_item(page, "actionBody")
+        a_current = _find_item(page, "actionCurrent")
+        report["action_current_forward"] = a_current.property("text")
+        report["action_body_visible_collapsed"] = a_body.isVisible()
+        _click(window, a_header)
+        report["action_body_visible_expanded"] = a_body.isVisible()
+        report["action_current_category_open"] = _find_item(
+            page, "actionChip_mouse_forward_click").isVisible()
+        cut_category = next(c["category"] for c in backend.actionCategories
+                            if any(a["id"] == "cut" for a in c["actions"]))
+        cut_chip = _find_item(page, "actionChip_cut")
+        if not cut_chip.isVisible():
+            _click(window, _find_item(page, "actionCategory_" + cut_category))
+        _click(window, cut_chip)
+        report["action_after_pick"] = (
+            backend._cfg["profiles"]["default"]["mappings"]["xbutton2"])
+        report["action_current_after_pick"] = a_current.property("text")
+        report["double_after_action_pick"] = backend.doublePressActionFor(
+            "default", "xbutton2")
+        page.setProperty("selectedButton", "xbutton1")
+        _settle()
+        report["action_body_collapsed_on_new_button"] = not a_body.isVisible()
         page.setProperty("selectedButton", "hscroll_left")
         _settle()
         report["section_visible_hscroll"] = bool(section.property("visible"))
@@ -172,6 +198,7 @@ def main():
             "double_press_mode": c["settings"].get("double_press_mode"),
             "double_press_window_ms": c["settings"].get("double_press_window_ms"),
             "xbutton2_double": c["profiles"]["default"]["mappings"].get("xbutton2_double"),
+            "xbutton2": c["profiles"]["default"]["mappings"].get("xbutton2"),
         }
         for c in report["saved"]
     ]

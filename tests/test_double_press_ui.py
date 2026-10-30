@@ -1,4 +1,4 @@
-"""Integration test for the double-press UI.
+"""Integration test for the action and double-press accordions.
 
 Runs tests/_double_press_ui_probe.py in a subprocess: it loads the real
 Settings page and Mouse page offscreen with a real Backend, clicks the
@@ -67,6 +67,18 @@ class DoublePressUiTests(unittest.TestCase):
         self.assertEqual(r["single_after_pick"], "mouse_forward_click")
         self.assertFalse(r["body_visible_recollapsed"])
 
+    def test_main_action_is_the_same_accordion(self):
+        r = self.report
+        self.assertTrue(r["action_current_forward"].startswith("Forward"))
+        self.assertFalse(r["action_body_visible_collapsed"])
+        self.assertTrue(r["action_body_visible_expanded"])
+        self.assertTrue(r["action_current_category_open"])
+        self.assertEqual(r["action_after_pick"], "cut")
+        self.assertTrue(r["action_current_after_pick"].startswith("Cut"))
+        # Picking the button's action leaves its double action alone.
+        self.assertEqual(r["double_after_action_pick"], "copy")
+        self.assertTrue(r["action_body_collapsed_on_new_button"])
+
     def test_section_is_hidden_for_buttons_without_a_release(self):
         self.assertFalse(self.report["section_visible_hscroll"])
 
@@ -76,6 +88,7 @@ class DoublePressUiTests(unittest.TestCase):
         last = r["saved"][-1]
         self.assertEqual(last["double_press_mode"], "wait")
         self.assertEqual(last["xbutton2_double"], "copy")
+        self.assertEqual(last["xbutton2"], "cut")
         self.assertEqual(last["double_press_window_ms"], r["window_after_click"])
         self.assertGreaterEqual(r["engine_reloads"], 3)
 

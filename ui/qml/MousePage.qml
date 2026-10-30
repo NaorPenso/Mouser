@@ -95,6 +95,7 @@ Item {
     property string selectedDoubleActionId: "none"
     onSelectedButtonChanged: {
         refreshDoubleAction()
+        actionAccordion.expanded = false
         doublePressPicker.expanded = false
     }
 
@@ -1647,7 +1648,7 @@ Item {
                                 }
                             }
 
-                            // Single button: categorized chips
+                            // Single button: action accordion
                             Column {
                                 width: parent.width
                                 spacing: 14
@@ -1657,78 +1658,28 @@ Item {
                                               && backend.supportsGestureDirections)
                                          && !isGestureSwipeMode
 
-                                // Opt-in: turn an eligible button (back/forward/
-                                // middle the device advertises) into a gesture pad.
-                                Column {
+                                // Opt-in Gesture Swipe (eligible back/forward/
+                                // middle the device advertises) leads the list.
+                                ActionAccordion {
+                                    id: actionAccordion
+                                    objectName: "actionAccordion"
                                     width: parent.width
-                                    spacing: 8
-                                    visible: isGestureSwipeEligible
-                                             && backend.supportsGestureDirections
-
-                                    Text {
-                                        text: s["mouse.gesture"] || "Gesture"
-                                        font { family: uiState.fontFamily; pixelSize: 11;
-                                               capitalization: Font.AllUppercase; letterSpacing: 1 }
-                                        color: theme.textDim
+                                    title: s["mouse.action"] || "Action"
+                                    namePrefix: "action"
+                                    actionId: selectedActionId || "none"
+                                    leadingCategories: isGestureSwipeEligible
+                                                       && backend.supportsGestureDirections
+                                                       ? [{ category: "Gesture",
+                                                            actions: [{ id: "gesture_swipe",
+                                                                        label: s["mouse.gesture_swipe"] || "Gesture Swipe" }] }]
+                                                       : []
+                                    onPicked: function(aid) {
+                                        backend.setProfileMapping(selectedProfile, selectedButton, aid)
+                                        selectedActionId = aid
                                     }
-
-                                    Flow {
-                                        width: parent.width; spacing: 8
-                                        ActionChip {
-                                            actionId: "gesture_swipe"
-                                            actionLabel: s["mouse.gesture_swipe"] || "Gesture Swipe"
-                                            isCurrent: selectedActionId === "gesture_swipe"
-                                            onPicked: function(aid) {
-                                                backend.setProfileMapping(
-                                                    selectedProfile, selectedButton, "gesture_swipe")
-                                                selectedActionId = "gesture_swipe"
-                                            }
-                                        }
-                                    }
-                                }
-
-                                Repeater {
-                                    model: backend.actionCategories
-
-                                    delegate: Column {
-                                        width: parent.width
-                                        spacing: 8
-
-                                        Text {
-                                            text: { var _lang = lm.strings; return lm.trCategory(modelData.category) }
-                                            font { family: uiState.fontFamily; pixelSize: 11;
-                                                   capitalization: Font.AllUppercase;
-                                                   letterSpacing: 1 }
-                                            color: theme.textDim
-                                        }
-
-                                        Flow {
-                                            width: parent.width; spacing: 8
-                                            Repeater {
-                                                model: modelData.actions
-                                                delegate: ActionChip {
-                                                    actionId: modelData.id
-                                                    actionLabel: modelData.id === "__custom__" && isCustomAction(selectedActionId)
-                                                                 ? customLabel(selectedActionId)
-                                                                 : (lm.strings, lm.trAction(modelData.label))
-                                                    isCurrent: modelData.id === "__custom__"
-                                                               ? isCustomAction(selectedActionId)
-                                                               : modelData.id === selectedActionId
-                                                    onPicked: function(aid) {
-                                                        if (aid === "__custom__") {
-                                                            keyCaptureDialog.open(selectedProfile, selectedButton,
-                                                                                  backend.isHoldAction(selectedActionId))
-                                                            return
-                                                        }
-                                                        backend.setProfileMapping(
-                                                            selectedProfile,
-                                                            selectedButton, aid)
-                                                        selectedActionId = aid
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                    onCustomRequested: keyCaptureDialog.open(
+                                        selectedProfile, selectedButton,
+                                        backend.isHoldAction(selectedActionId))
                                 }
                             }
 
@@ -2045,10 +1996,18 @@ Item {
 
                                 Rectangle { width: parent.width; height: 1; color: theme.border }
 
-                                DoublePressPicker {
+                                ActionAccordion {
                                     id: doublePressPicker
                                     objectName: "doublePressPicker"
                                     width: parent.width
+                                    title: s["mouse.double_press"] || "Double press"
+                                    namePrefix: "doublePress"
+                                    noneLabel: s["mouse.double_press_off"] || "Off"
+                                    hint: (s["mouse.double_press_hint"] || "")
+                                          + " " + (backend.doublePressMode === "wait"
+                                                   ? s["mouse.double_press_mode_wait"]
+                                                   : s["mouse.double_press_mode_instant"])
+                                          + " · " + backend.doublePressWindowMs + " ms."
                                     actionId: selectedDoubleActionId
                                     onPicked: function(aid) {
                                         backend.setProfileMapping(

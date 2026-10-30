@@ -4,18 +4,30 @@ import QtQuick
 import QtQuick.Layouts
 import "Theme.js" as Theme
 
-/*  Accordion picker for a button's double-press action ("<button>_double").
+/*  Accordion action picker, used for a button's action and its double-press
+    action ("<button>_double").
 
-    Collapsed it is one row: "Double press" and the current action. Expanded
-    it lists the action categories as accordions of the same chips the main
-    picker uses; the category holding the current action starts open.      */
+    Collapsed it is one row: the title and the current action. Expanded it
+    shows an optional hint and the action categories as accordions of chips;
+    the category holding the current action starts open.
+
+    Item names start with ``namePrefix`` (Header, Current, Body, Category_<c>,
+    Chip_<id>) so tests can drive each picker on a page separately.          */
 
 Column {
     id: picker
     readonly property var theme: Theme.palette(uiState.darkMode)
     property var s: lm.strings
 
+    property string title: ""
+    property string namePrefix: "action"
     property string actionId: "none"
+    // Label shown for "none"; empty uses the action's own label.
+    property string noneLabel: ""
+    property string hint: ""
+    // Categories listed before the shared ones (e.g. Gesture Swipe for a
+    // button that can become a gesture pad), same shape as actionCategories.
+    property var leadingCategories: []
     property bool expanded: false
 
     signal picked(string aid)
@@ -23,8 +35,8 @@ Column {
 
     readonly property bool isCustom: actionId.indexOf("custom:") === 0
                                      || actionId.indexOf("hold:") === 0
-    readonly property string currentLabel: actionId === "none"
-                                           ? (s["mouse.double_press_off"] || "Off")
+    readonly property string currentLabel: actionId === "none" && noneLabel !== ""
+                                           ? noneLabel
                                            : backend.actionLabelFor(actionId)
 
     function categoryHolds(category, aid) {
@@ -42,7 +54,7 @@ Column {
     // ── Header: the collapsed accordion row ─────────────────────
     Rectangle {
         id: header
-        objectName: "doublePressHeader"
+        objectName: picker.namePrefix + "Header"
         width: picker.width
         height: 44
         radius: 10
@@ -51,8 +63,7 @@ Column {
         border.color: picker.expanded ? picker.theme.accent : picker.theme.border
 
         Accessible.role: Accessible.Button
-        Accessible.name: (picker.s["mouse.double_press"] || "Double press")
-                         + ": " + picker.currentLabel
+        Accessible.name: picker.title + ": " + picker.currentLabel
 
         Behavior on color { ColorAnimation { duration: 120 } }
 
@@ -61,13 +72,13 @@ Column {
             spacing: 10
 
             Text {
-                text: picker.s["mouse.double_press"] || "Double press"
+                text: picker.title
                 font { family: uiState.fontFamily; pixelSize: 12; bold: true }
                 color: picker.theme.textPrimary
             }
 
             Text {
-                objectName: "doublePressCurrent"
+                objectName: picker.namePrefix + "Current"
                 Layout.fillWidth: true
                 horizontalAlignment: Text.AlignRight
                 elide: Text.ElideRight
@@ -97,26 +108,23 @@ Column {
 
     // ── Body: hint plus one accordion per action category ───────
     Column {
-        objectName: "doublePressBody"
+        objectName: picker.namePrefix + "Body"
         width: picker.width
         spacing: 6
         visible: picker.expanded
 
         Text {
             width: parent.width
+            visible: picker.hint !== ""
             wrapMode: Text.WordWrap
             bottomPadding: 4
-            text: (picker.s["mouse.double_press_hint"] || "")
-                  + " " + (backend.doublePressMode === "wait"
-                           ? picker.s["mouse.double_press_mode_wait"]
-                           : picker.s["mouse.double_press_mode_instant"])
-                  + " · " + backend.doublePressWindowMs + " ms."
+            text: picker.hint
             font { family: uiState.fontFamily; pixelSize: 12 }
             color: picker.theme.textSecondary
         }
 
         Repeater {
-            model: backend.actionCategories
+            model: picker.leadingCategories.concat(backend.actionCategories)
 
             delegate: Column {
                 id: group
@@ -129,7 +137,7 @@ Column {
                 spacing: 6
 
                 Rectangle {
-                    objectName: "doublePressCategory_" + group.modelData.category
+                    objectName: picker.namePrefix + "Category_" + group.modelData.category
                     width: parent.width
                     height: 34
                     radius: 8
@@ -186,7 +194,7 @@ Column {
                         model: group.modelData.actions
                         delegate: ActionChip {
                             required property var modelData
-                            objectName: "doublePressChip_" + modelData.id
+                            objectName: picker.namePrefix + "Chip_" + modelData.id
                             actionId: modelData.id
                             actionLabel: modelData.id === "__custom__" && picker.isCustom
                                          ? picker.currentLabel
