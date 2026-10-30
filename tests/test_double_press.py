@@ -212,7 +212,7 @@ class CoercionTests(unittest.TestCase):
         self.assertEqual(coerce_double_press_window_ms(250), 250)
         self.assertEqual(coerce_double_press_window_ms("400"), 400)
         self.assertEqual(coerce_double_press_window_ms(5), 50)
-        self.assertEqual(coerce_double_press_window_ms(99999), 2000)
+        self.assertEqual(coerce_double_press_window_ms(99999), 1000)
         self.assertEqual(coerce_double_press_window_ms("soon"), 300)
 
 

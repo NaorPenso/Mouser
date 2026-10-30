@@ -219,6 +219,9 @@ def button_supports_hold(button_key):
     """True when the button reports both press and release, so a ``hold:``
     custom shortcut can stay pressed for as long as the button is held.
     Single-fire sources (swipes, horizontal scroll, taps) cannot hold."""
+    if button_key.endswith("_double"):
+        # A double press's second press is held like a normal press.
+        return button_supports_hold(button_key[:-len("_double")])
     events = BUTTON_TO_EVENTS.get(button_key, ())
     has_down = any(e.endswith("_down") for e in events)
     has_up = any(e.endswith("_up") for e in events)

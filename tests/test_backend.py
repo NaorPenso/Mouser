@@ -1131,5 +1131,55 @@ class BackendHoldShortcutTests(unittest.TestCase):
         from ui.locale_manager import _TRANSLATIONS
         self.assertIn("fn/globe", _TRANSLATIONS["en"]["key_capture.valid_keys"])
 
+
+class BackendDoublePressTests(unittest.TestCase):
+    def _make_backend(self, mappings=None):
+        _ensure_qapp()
+        cfg = copy.deepcopy(DEFAULT_CONFIG)
+        cfg["profiles"]["default"]["mappings"].update(mappings or {})
+        engine = _FakeEngine()
+        engine.reload_mappings = unittest.mock.Mock()
+        with (
+            patch("ui.backend.load_config", return_value=cfg),
+            patch("ui.backend.supports_login_startup", return_value=False),
+        ):
+            backend = Backend(engine=engine)
+        return backend, engine
+
+    def test_mode_is_saved_coerced_and_reloads_the_engine(self):
+        backend, engine = self._make_backend()
+        self.assertEqual(backend.doublePressMode, "instant")
+        with patch("ui.backend.save_config") as save:
+            backend.setDoublePressMode("wait")
+            backend.setDoublePressMode("sometimes")
+        self.assertEqual(backend.doublePressMode, "instant")
+        self.assertEqual(save.call_count, 2)
+        self.assertEqual(engine.reload_mappings.call_count, 2)
+
+    def test_window_is_clamped_and_unchanged_values_are_not_saved(self):
+        backend, _ = self._make_backend()
+        with patch("ui.backend.save_config") as save:
+            backend.setDoublePressWindowMs(5000)
+            self.assertEqual(backend.doublePressWindowMs, backend.doublePressWindowMaxMs)
+            backend.setDoublePressWindowMs(5000)
+            backend.setDoublePressWindowMs(1)
+        self.assertEqual(backend.doublePressWindowMs, backend.doublePressWindowMinMs)
+        self.assertEqual(save.call_count, 2)
+
+    def test_per_button_double_action_lookup(self):
+        backend, _ = self._make_backend({"xbutton2_double": "hold:fn"})
+        self.assertEqual(backend.doublePressActionFor("default", "xbutton2"), "hold:fn")
+        self.assertEqual(backend.doublePressActionFor("default", "xbutton1"), "none")
+        self.assertEqual(backend.doublePressActionFor("missing", "xbutton2"), "none")
+        self.assertTrue(backend.buttonSupportsDoublePress("actions_ring"))
+        self.assertFalse(backend.buttonSupportsDoublePress("hscroll_left"))
+        self.assertFalse(backend.buttonSupportsDoublePress(""))
+
+    def test_the_second_press_can_hold_a_shortcut(self):
+        backend, _ = self._make_backend()
+        self.assertTrue(backend.buttonSupportsHoldAction("actions_ring_double"))
+        self.assertTrue(backend.buttonSupportsHoldAction("xbutton2_double"))
+        self.assertFalse(backend.buttonSupportsHoldAction("hscroll_left_double"))
+
 if __name__ == "__main__":
     unittest.main()

@@ -20,6 +20,15 @@ from core.config import (
     get_icon_for_exe, HAPTIC_ELIGIBLE_ACTIONS, set_action_haptic,
     set_button_haptic,
     GESTURE_SWIPE_ACTION, SWIPE_CAPABLE_BUTTONS, GESTURE_SWIPE_DIRECTIONS,
+    DOUBLE_PRESS_BUTTONS, double_press_action,
+)
+from core.double_press import (
+    DEFAULT_DOUBLE_PRESS_MODE,
+    DEFAULT_DOUBLE_PRESS_WINDOW_MS,
+    MAX_DOUBLE_PRESS_WINDOW_MS,
+    MIN_DOUBLE_PRESS_WINDOW_MS,
+    coerce_double_press_mode,
+    coerce_double_press_window_ms,
 )
 from core import app_catalog
 from core.device_layouts import get_device_layout, get_manual_layout_choices
@@ -585,6 +594,61 @@ class Backend(QObject):
         self.settingsChanged.emit()
         if self._engine:
             self._engine.reload_mappings()
+
+    # ── Double press ──────────────────────────────────────────
+
+    @Property(str, notify=settingsChanged)
+    def doublePressMode(self):
+        return coerce_double_press_mode(self._cfg.get("settings", {}).get(
+            "double_press_mode", DEFAULT_DOUBLE_PRESS_MODE))
+
+    @Slot(str)
+    def setDoublePressMode(self, mode):
+        mode = coerce_double_press_mode(mode)
+        if mode == self.doublePressMode:
+            return
+        self._cfg.setdefault("settings", {})["double_press_mode"] = mode
+        save_config(self._cfg)
+        self.settingsChanged.emit()
+        if self._engine:
+            self._engine.reload_mappings()
+        self.statusMessage.emit("Saved")
+
+    @Property(int, notify=settingsChanged)
+    def doublePressWindowMs(self):
+        return coerce_double_press_window_ms(self._cfg.get("settings", {}).get(
+            "double_press_window_ms", DEFAULT_DOUBLE_PRESS_WINDOW_MS))
+
+    @Property(int, constant=True)
+    def doublePressWindowMinMs(self):
+        return MIN_DOUBLE_PRESS_WINDOW_MS
+
+    @Property(int, constant=True)
+    def doublePressWindowMaxMs(self):
+        return MAX_DOUBLE_PRESS_WINDOW_MS
+
+    @Slot(int)
+    def setDoublePressWindowMs(self, ms):
+        ms = coerce_double_press_window_ms(ms)
+        if ms == self.doublePressWindowMs:
+            return
+        self._cfg.setdefault("settings", {})["double_press_window_ms"] = ms
+        save_config(self._cfg)
+        self.settingsChanged.emit()
+        if self._engine:
+            self._engine.reload_mappings()
+        self.statusMessage.emit("Saved")
+
+    @Slot(str, result=bool)
+    def buttonSupportsDoublePress(self, button):
+        """True for buttons whose press and release Mouser sees."""
+        return (button or "") in DOUBLE_PRESS_BUTTONS
+
+    @Slot(str, str, result=str)
+    def doublePressActionFor(self, profileName, button):
+        """The double-press action of ``button`` in ``profileName``."""
+        pdata = self._cfg.get("profiles", {}).get(profileName, {})
+        return double_press_action(pdata.get("mappings", {}), button or "")
 
     @Property(bool, notify=mappingsChanged)
     def actionsRingUseGlobal(self):

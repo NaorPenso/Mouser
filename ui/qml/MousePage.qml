@@ -88,6 +88,17 @@ Item {
             mappingState[mapping.key] = mapping
         }
         selectedProfileMappingState = mappingState
+        refreshDoubleAction()
+    }
+
+    // Double press: the second action of the selected button ("<btn>_double").
+    property string selectedDoubleActionId: "none"
+    onSelectedButtonChanged: refreshDoubleAction()
+
+    function refreshDoubleAction() {
+        selectedDoubleActionId = selectedButton !== ""
+                ? backend.doublePressActionFor(selectedProfile, selectedButton)
+                : "none"
     }
 
     function mappingFor(key) {
@@ -2017,6 +2028,77 @@ Item {
                                 }
                             }
 
+                            // ── Double press ─────────────────────────
+                            // Click, then click again (or click and hold) for a
+                            // second action, stored as "<button>_double". Mode and
+                            // window are global and live in Settings.
+                            Column {
+                                id: doublePressSection
+                                objectName: "doublePressSection"
+                                width: parent.width
+                                spacing: 10
+                                visible: backend.buttonSupportsDoublePress(selectedButton)
+                                         && !isGestureSwipeMode
+
+                                Rectangle { width: parent.width; height: 1; color: theme.border }
+
+                                RowLayout {
+                                    width: parent.width
+                                    spacing: 8
+
+                                    Text {
+                                        text: s["mouse.double_press"]
+                                        Layout.fillWidth: true
+                                        font { family: uiState.fontFamily; pixelSize: 11;
+                                               capitalization: Font.AllUppercase; letterSpacing: 1 }
+                                        color: theme.textDim
+                                    }
+
+                                    Text {
+                                        text: (backend.doublePressMode === "wait"
+                                               ? s["mouse.double_press_mode_wait"]
+                                               : s["mouse.double_press_mode_instant"])
+                                              + " \u00b7 " + backend.doublePressWindowMs + " ms"
+                                        font { family: uiState.fontFamily; pixelSize: 11 }
+                                        color: theme.textSecondary
+                                    }
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    text: s["mouse.double_press_hint"]
+                                    font { family: uiState.fontFamily; pixelSize: 12 }
+                                    color: theme.textSecondary
+                                }
+
+                                ComboBox {
+                                    id: doublePressCombo
+                                    objectName: "doublePressCombo"
+                                    width: parent.width
+                                    model: backend.allActions
+                                    textRole: "label"
+                                    delegate: actionComboDelegate
+                                    Material.accent: theme.accent
+                                    font { family: uiState.fontFamily; pixelSize: 11 }
+                                    currentIndex: actionIndexForId(selectedDoubleActionId)
+                                    displayText: isCustomAction(selectedDoubleActionId)
+                                                 ? customLabel(selectedDoubleActionId)
+                                                 : (lm.strings, lm.trAction(currentText))
+                                    onActivated: function(index) {
+                                        var aid = backend.allActions[index].id
+                                        if (aid === "__custom__") {
+                                            keyCaptureDialog.open(
+                                                selectedProfile, selectedButton + "_double",
+                                                backend.isHoldAction(selectedDoubleActionId))
+                                            return
+                                        }
+                                        backend.setProfileMapping(
+                                            selectedProfile, selectedButton + "_double", aid)
+                                    }
+                                }
+                            }
+
                             Item { width: 1; height: 8 }
                         }
                     }
@@ -2915,7 +2997,10 @@ Item {
                 keyCaptureDialog.targetButton,
                 actionId)
             refreshSelectedProfileMappings()
-            selectedActionId = actionId
+            // Only the button's own action drives the chip highlight; a
+            // double-press or swipe shortcut is shown by its own picker.
+            if (keyCaptureDialog.targetButton === selectedButton)
+                selectedActionId = actionId
         }
     }
 }

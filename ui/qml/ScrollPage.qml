@@ -16,6 +16,10 @@ Item {
         { label: s["scroll.light"],  value: "light"  },
         { label: s["scroll.dark"],   value: "dark"   }
     ]
+    readonly property var doublePressModes: [
+        { label: s["scroll.double_press_instant"], value: "instant" },
+        { label: s["scroll.double_press_wait"],    value: "wait"    }
+    ]
     readonly property var allDpiPresets: [400, 800, 1000, 1600, 2400, 4000, 6000, 8000]
     readonly property var dpiPresets: {
         var presets = []
@@ -646,6 +650,181 @@ Item {
                                     onClicked: backend.setAppearanceMode(modelData.value)
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            Item { width: 1; height: 16 }
+
+            // ── Double press ──────────────────────────────────────
+            // Global timing for every button with a double-press action.
+            Rectangle {
+                id: doublePressCard
+                objectName: "doublePressCard"
+                width: parent.width - 72
+                anchors.horizontalCenter: parent.horizontalCenter
+                height: doublePressContent.implicitHeight + 40
+                radius: Theme.radius
+                color: scrollPage.theme.bgCard
+                border.width: 1
+                border.color: scrollPage.theme.border
+
+                Column {
+                    id: doublePressContent
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        top: parent.top
+                        margins: 20
+                    }
+                    spacing: 12
+
+                    Text {
+                        text: scrollPage.s["scroll.double_press"]
+                        font {
+                            family: uiState.fontFamily
+                            pixelSize: 16
+                            bold: true
+                        }
+                        color: scrollPage.theme.textPrimary
+                    }
+
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: scrollPage.s["scroll.double_press_desc"]
+                        font {
+                            family: uiState.fontFamily
+                            pixelSize: 12
+                        }
+                        color: scrollPage.theme.textSecondary
+                    }
+
+                    Row {
+                        width: parent.width
+                        spacing: 10
+
+                        Repeater {
+                            model: scrollPage.doublePressModes
+
+                            delegate: Rectangle {
+                                id: modeChip
+                                objectName: "doublePressMode_" + modelData.value
+                                required property var modelData
+                                readonly property bool chosen:
+                                    backend.doublePressMode === modeChip.modelData.value
+                                width: Math.max(96, modeText.implicitWidth + 28)
+                                height: 38
+                                radius: 10
+                                color: chosen
+                                       ? scrollPage.theme.accent
+                                       : modeMouse.containsMouse
+                                         ? scrollPage.theme.bgCardHover
+                                         : scrollPage.theme.bgSubtle
+                                border.width: 1
+                                border.color: chosen
+                                              ? scrollPage.theme.accent
+                                              : scrollPage.theme.border
+
+                                Accessible.role: Accessible.Button
+                                Accessible.name: modeChip.modelData.label
+
+                                Behavior on color { ColorAnimation { duration: 120 } }
+
+                                Text {
+                                    id: modeText
+                                    anchors.centerIn: parent
+                                    text: modeChip.modelData.label
+                                    font {
+                                        family: uiState.fontFamily
+                                        pixelSize: 12
+                                        bold: modeChip.chosen
+                                    }
+                                    color: modeChip.chosen
+                                           ? scrollPage.theme.onAccent
+                                           : scrollPage.theme.textPrimary
+                                }
+
+                                MouseArea {
+                                    id: modeMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: backend.setDoublePressMode(modeChip.modelData.value)
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        objectName: "doublePressModeDesc"
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: backend.doublePressMode === "wait"
+                              ? scrollPage.s["scroll.double_press_wait_desc"]
+                              : scrollPage.s["scroll.double_press_instant_desc"]
+                        font {
+                            family: uiState.fontFamily
+                            pixelSize: 12
+                        }
+                        color: scrollPage.theme.textSecondary
+                    }
+
+                    RowLayout {
+                        width: parent.width
+                        spacing: 12
+
+                        Text {
+                            text: scrollPage.s["scroll.double_press_window"]
+                            font {
+                                family: uiState.fontFamily
+                                pixelSize: 12
+                                bold: true
+                            }
+                            color: scrollPage.theme.textPrimary
+                        }
+
+                        WheelSafeSlider {
+                            id: doublePressWindowSlider
+                            objectName: "doublePressWindowSlider"
+                            Layout.fillWidth: true
+                            from: backend.doublePressWindowMinMs
+                            to: backend.doublePressWindowMaxMs
+                            stepSize: 10
+                            value: backend.doublePressWindowMs
+                            accentColor: scrollPage.theme.accent
+                            accentDimColor: scrollPage.theme.accentDim
+                            trackColor: scrollPage.theme.border
+                            onMoved: doublePressWindowSave.restart()
+                            onPressedChanged: {
+                                if (!pressed) {
+                                    doublePressWindowSave.stop()
+                                    backend.setDoublePressWindowMs(Math.round(value))
+                                }
+                            }
+                        }
+
+                        Text {
+                            objectName: "doublePressWindowLabel"
+                            Layout.preferredWidth: 64
+                            horizontalAlignment: Text.AlignRight
+                            text: Math.round(doublePressWindowSlider.pressed
+                                             ? doublePressWindowSlider.value
+                                             : backend.doublePressWindowMs) + " ms"
+                            font {
+                                family: uiState.fontFamily
+                                pixelSize: 12
+                            }
+                            color: scrollPage.theme.textSecondary
+                        }
+
+                        Timer {
+                            id: doublePressWindowSave
+                            interval: 250
+                            repeat: false
+                            onTriggered: backend.setDoublePressWindowMs(
+                                Math.round(doublePressWindowSlider.value))
                         }
                     }
                 }
