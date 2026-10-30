@@ -116,7 +116,7 @@
       "show_desktop",
       "launchpad"
     ],
-    "double_press_mode": "instant",
+    "double_press_mode": "wait",
     "double_press_window_ms": 300
   }
 }
