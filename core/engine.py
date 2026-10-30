@@ -130,6 +130,7 @@ class Engine:
         self._mouse_release_timers = {}   # action_id → Timer for safety auto-release
         self._held_shortcuts = {}         # hold: action_id → safety Timer while keys are down
         self._double_press_detectors = []  # one per button with a "<btn>_double" action
+        self._pointer_freed_holds = set()  # hold: action_ids that released a pinned cursor
         self._ring = None                 # ActionsRingController (created in _setup_hooks)
         self._ring_show_cb = None         # UI callback for showing ring overlay
         self._ring_hide_cb = None         # UI callback for hiding ring overlay
@@ -692,7 +693,7 @@ class Engine:
                 if (action_haptic_enabled(self.cfg, action_id)
                         or button_haptic_enabled(self.cfg, btn_key)):
                     self._play_haptic_async(1)
-                self._press_held_shortcut(action_id)
+                self._press_held_shortcut(action_id, btn_key)
             except Exception as exc:
                 print(f"[Engine] hold_down_handler EXCEPTION for {action_id}: {exc}")
                 import traceback; traceback.print_exc()
@@ -712,9 +713,21 @@ class Engine:
                 import traceback; traceback.print_exc()
         return handler
 
-    def _press_held_shortcut(self, action_id):
+    def _primary_gesture_button(self):
+        """Config key of the control the HID layer diverts with rawXY: the
+        Sense Panel on the MX Master 4, the Gesture button elsewhere."""
+        via_sense = bool(getattr(self.connected_device, "gesture_via_sense_panel", False))
+        return "actions_ring" if via_sense else "gesture"
+
+    def _press_held_shortcut(self, action_id, btn_key=""):
         # A repeated DOWN without an UP (lost release) restarts the hold.
         self._release_held_shortcut(action_id)
+        # The rawXY-diverted control pins the cursor while held; a held
+        # shortcut (push-to-talk) must not freeze the pointer.
+        if (btn_key and btn_key == self._primary_gesture_button()
+                and hasattr(self.hook, "set_gesture_pointer_free")
+                and self.hook.set_gesture_pointer_free(True)):
+            self._pointer_freed_holds.add(action_id)
         hold_action_press(action_id)
 
         def _safety_release():
@@ -732,6 +745,10 @@ class Engine:
             return  # not held, or already let go by the safety timer
         timer.cancel()
         hold_action_release(action_id)
+        if action_id in self._pointer_freed_holds:
+            self._pointer_freed_holds.discard(action_id)
+            if not self._pointer_freed_holds:
+                self.hook.set_gesture_pointer_free(False)
 
     def _release_held_shortcuts(self):
         for action_id in list(self._held_shortcuts):

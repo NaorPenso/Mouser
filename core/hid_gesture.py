@@ -1092,6 +1092,9 @@ class HidGestureListener:
         self._held      = False
         self._connected = False         # True while HID++ device is open
         self._rawxy_enabled = False
+        # True while a held shortcut has switched the primary gesture control
+        # to button-only so the cursor moves (see set_gesture_pointer_free).
+        self._gesture_pointer_free = False
         self._extra_held_during_gesture = False
         # CIDs requiring button-only divert (0x03) instead of the default
         # rawXY-enabled divert (0x33); currently the device's thumb_button
@@ -1712,6 +1715,7 @@ class HidGestureListener:
         # Fresh divert round — the primary gesture CID owns rawXY until a thumb
         # hold hands it over (guards against a stuck owner across reconnects).
         self._rawxy_owner = "gesture"
+        self._gesture_pointer_free = False
         for cid in self._gesture_candidates:
             self._gesture_cid = cid
             button_only = cid in self._button_only_cids
@@ -1770,6 +1774,35 @@ class HidGestureListener:
             "on_up": self._fire_thumb_button_up,
             "held": False,
         }
+
+    def set_gesture_pointer_free(self, free: bool) -> bool:
+        """Let the OS cursor move while the primary gesture control is held.
+
+        Diverted with rawXY, the control pins the cursor for as long as it is
+        held, which the Actions Ring and swipes rely on. A held shortcut on
+        the same control (push-to-talk) needs the pointer to keep moving, so
+        the control is switched to button-only for that hold and back to
+        rawXY afterwards; press and release keep flowing either way.
+
+        Fire-and-forget write (serialized by _tx_lock) so it is safe from any
+        thread; the listener reads and ignores the acknowledgement."""
+        free = bool(free)
+        cid = self._gesture_cid
+        if (cid is None or self._dev is None or self._feat_idx is None
+                or not self._rawxy_enabled or self._rawxy_owner != "gesture"):
+            return False
+        if free == self._gesture_pointer_free:
+            return True
+        flags = _DIVERT_BUTTON_ONLY if free else _DIVERT_RAW_XY
+        try:
+            self._tx(LONG_ID, self._feat_idx, 3,
+                     [(cid >> 8) & 0xFF, cid & 0xFF, flags, 0x00, 0x00])
+        except Exception as exc:
+            print(f"[HidGesture] pointer {'release' if free else 'pin'} "
+                  f"{_format_cid(cid)} failed: {exc}")
+            return False
+        self._gesture_pointer_free = free
+        return True
 
     def set_thumb_rawxy_enabled(self, enabled: bool) -> None:
         """Enable/disable handing the rawXY stream to the thumb button while

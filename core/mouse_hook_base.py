@@ -300,6 +300,15 @@ class BaseMouseHook:
         self._gesture_move_callback = move_callback
         self._gesture_os_passthrough = bool(enabled)
 
+    def set_gesture_pointer_free(self, free):
+        """Keep the cursor moving while the primary gesture control is held
+        (a held shortcut on it), or pin it again. False when the control is
+        not diverted with rawXY, so there is nothing to release."""
+        hg = self._hid_gesture
+        if hg is None or not hasattr(hg, "set_gesture_pointer_free"):
+            return False
+        return hg.set_gesture_pointer_free(free)
+
     def set_thumb_os_passthrough(self, enabled, move_callback=None):
         """Thumb-button counterpart of set_gesture_os_passthrough, used when
         the thumb's tap action is the Actions Ring."""

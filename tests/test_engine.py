@@ -882,6 +882,70 @@ class DoublePressEngineTests(unittest.TestCase):
             hook.fire("xbutton2_down")
         execute.assert_called_once_with("copy")
 
+    def _mx4(self, hook):
+        hook.connected_device = SimpleNamespace(
+            gesture_via_sense_panel=True, supported_buttons=None)
+
+    def test_held_fn_on_the_sense_panel_keeps_the_pointer_moving(self):
+        # The Sense Panel is diverted with rawXY, which pins the cursor while
+        # it is held. A double-press Fn hold must release it for the hold.
+        engine, hook = self._make_engine({
+            "actions_ring": "activate_actions_ring",
+            "actions_ring_double": "hold:fn",
+        }, mode="wait")
+        self._mx4(hook)
+        with (
+            patch("core.actions_ring.threading.Timer", _ManualTimer),
+            patch("core.engine.hold_action_press") as press,
+            patch("core.engine.hold_action_release") as release,
+            patch("core.engine.threading.Timer"),
+        ):
+            hook.fire("sense_button_down")
+            hook.fire("sense_button_up")
+            hook.fire("sense_button_down")
+            self.assertEqual(hook.pointer_free_calls, [True])
+            press.assert_called_once_with("hold:fn")
+            hook.fire("sense_button_up")
+            release.assert_called_once_with("hold:fn")
+        self.assertEqual(hook.pointer_free_calls, [True, False])
+
+    def test_ring_press_and_hold_keeps_the_cursor_pinned(self):
+        engine, hook = self._make_engine({
+            "actions_ring": "activate_actions_ring",
+            "actions_ring_double": "hold:fn",
+        }, mode="wait")
+        self._mx4(hook)
+        with patch("core.actions_ring.threading.Timer", _ManualTimer):
+            hook.fire("sense_button_down")
+            _ManualTimer.expire_all()      # long first press: the ring
+            hook.fire("sense_button_up")
+        self.assertEqual(hook.pointer_free_calls, [])
+
+    def test_held_shortcut_on_an_os_button_does_not_touch_the_pointer(self):
+        engine, hook = self._make_engine({"xbutton1": "hold:fn"})
+        self._mx4(hook)
+        with (
+            patch("core.engine.hold_action_press"),
+            patch("core.engine.hold_action_release"),
+            patch("core.engine.threading.Timer"),
+        ):
+            hook.fire("xbutton1_down")
+            hook.fire("xbutton1_up")
+        self.assertEqual(hook.pointer_free_calls, [])
+
+    def test_stopping_mid_hold_pins_the_cursor_again(self):
+        engine, hook = self._make_engine({"actions_ring": "hold:alt+grave"})
+        self._mx4(hook)
+        with (
+            patch("core.engine.hold_action_press"),
+            patch("core.engine.hold_action_release") as release,
+            patch("core.engine.threading.Timer"),
+        ):
+            hook.fire("sense_button_down")
+            engine.stop()
+        release.assert_called_once_with("hold:alt+grave")
+        self.assertEqual(hook.pointer_free_calls, [True, False])
+
     def test_rewiring_cancels_a_pending_single(self):
         engine, hook = self._make_engine({
             "xbutton2": "copy",
@@ -906,6 +970,11 @@ class _RecordingMouseHook(_FakeMouseHook):
         super().__init__()
         self.blocked = set()
         self.handlers = {}
+        self.pointer_free_calls = []
+
+    def set_gesture_pointer_free(self, free):
+        self.pointer_free_calls.append(bool(free))
+        return True
 
     def block(self, event_type):
         self.blocked.add(event_type)

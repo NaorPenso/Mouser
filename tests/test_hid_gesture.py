@@ -956,6 +956,48 @@ class HidBoltReceiverTests(unittest.TestCase):
 
         self.assertEqual(listener._button_only_cids, set())
 
+    def _pointer_listener(self):
+        listener = hid_gesture.HidGestureListener()
+        listener._feat_idx = 0x0D
+        listener._dev = object()
+        listener._gesture_cid = 0x01A0
+        listener._rawxy_enabled = True
+        listener._rawxy_owner = "gesture"
+        return listener
+
+    def test_pointer_free_switches_the_held_control_to_button_only_and_back(self):
+        listener = self._pointer_listener()
+        sent = []
+        with patch.object(listener, "_tx",
+                          side_effect=lambda *a: sent.append(a)):
+            self.assertTrue(listener.set_gesture_pointer_free(True))
+            self.assertTrue(listener.set_gesture_pointer_free(True))  # no rewrite
+            self.assertTrue(listener.set_gesture_pointer_free(False))
+        self.assertEqual(sent, [
+            (hid_gesture.LONG_ID, 0x0D, 3, [0x01, 0xA0, 0x03, 0x00, 0x00]),
+            (hid_gesture.LONG_ID, 0x0D, 3, [0x01, 0xA0, 0x33, 0x00, 0x00]),
+        ])
+
+    def test_pointer_free_is_a_no_op_without_a_rawxy_divert(self):
+        for attr, value in (("_rawxy_enabled", False), ("_rawxy_owner", "thumb"),
+                            ("_gesture_cid", None), ("_dev", None)):
+            listener = self._pointer_listener()
+            setattr(listener, attr, value)
+            with self.subTest(**{attr: value}), \
+                 patch.object(listener, "_tx") as tx:
+                self.assertFalse(listener.set_gesture_pointer_free(True))
+                tx.assert_not_called()
+
+    def test_a_new_divert_round_forgets_a_released_pointer(self):
+        listener = self._pointer_listener()
+        listener._gesture_pointer_free = True
+        listener._gesture_candidates = [0x01A0]
+        listener._button_only_cids = set()
+        with patch.object(listener, "_set_cid_reporting", return_value=True), \
+             patch("builtins.print"):
+            listener._divert()
+        self.assertFalse(listener._gesture_pointer_free)
+
     def test_divert_skips_rawxy_attempt_for_cids_in_button_only_set(self):
         """`_divert` must request 0x03 (button-only) directly for any CID
         flagged in `_button_only_cids`, rather than first trying 0x33
