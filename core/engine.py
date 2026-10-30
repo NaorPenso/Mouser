@@ -128,7 +128,7 @@ class Engine:
         self._replay_pending_rerun = False
         self._replay_lock = threading.Lock()
         self._mouse_release_timers = {}   # action_id → Timer for safety auto-release
-        self._held_shortcuts = {}         # hold: action_id → safety Timer while keys are down
+        self._held_shortcuts = set()      # hold: action_ids whose keys are down
         self._double_press_detectors = []  # one per button with a "<btn>_double" action
         self._ring = None                 # ActionsRingController (created in _setup_hooks)
         self._ring_show_cb = None         # UI callback for showing ring overlay
@@ -735,8 +735,8 @@ class Engine:
 
     def _prepare_gesture_pointer(self, action_id):
         """Set the primary gesture control's reporting for the press that
-        will run ``action_id``. The firmware fixes the cursor pin when a
-        press starts, so this must happen before the press, not during it."""
+        will run ``action_id``, before that press starts, so the whole hold
+        runs with the cursor pinned (rawXY) or free (button-only)."""
         if hasattr(self.hook, "set_gesture_pointer_free"):
             self.hook.set_gesture_pointer_free(not self._needs_rawxy(action_id))
 
@@ -752,21 +752,16 @@ class Engine:
         hold_action_press(action_id)
         # No key names in the log (least-privilege rule).
         print(f"[Engine] held shortcut down on {btn_key or 'button'}")
-
-        def _safety_release():
-            print(f"[Engine] SAFETY RELEASE fired for {action_id} (UP never received)")
-            self._release_held_shortcut(action_id)
-
-        timer = threading.Timer(20.0, _safety_release)
-        timer.daemon = True
-        self._held_shortcuts[action_id] = timer
-        timer.start()
+        # No timeout: a push-to-talk hold can last minutes. A lost release is
+        # covered elsewhere: the HID listener releases held controls on
+        # disconnect and on a stale hold, the next press of the same button
+        # releases first (above), and stop and reload release every hold.
+        self._held_shortcuts.add(action_id)
 
     def _release_held_shortcut(self, action_id):
-        timer = self._held_shortcuts.pop(action_id, None)
-        if timer is None:
-            return  # not held, or already let go by the safety timer
-        timer.cancel()
+        if action_id not in self._held_shortcuts:
+            return  # not held
+        self._held_shortcuts.discard(action_id)
         hold_action_release(action_id)
         print("[Engine] held shortcut up")
 

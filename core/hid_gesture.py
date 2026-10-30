@@ -898,21 +898,21 @@ FEAT_HAPTIC         = 0x19B0      # Haptic Feedback (MX Master 4)
 FEAT_FORCE_SENSING  = 0x19C0      # Force Sensing Button (MX Master 4)
 DEFAULT_GESTURE_CID = DEFAULT_GESTURE_CIDS[0]
 
-# REPROG_V4 ``setCidReporting`` control flags (fn 3 byte 2). The
-# protocol packs four bits we ever toggle from this module:
-#   bit 0 (0x01) = temporary divert    -- volatile, cleared on disconnect.
-#   bit 1 (0x02) = persistent divert   -- survives sleep/wake.
-#   bit 4 (0x10) = temporary rawXY     -- forward raw cursor deltas instead
-#                                         of the synthesized button click.
-#   bit 5 (0x20) = persistent rawXY    -- survives sleep/wake.
-# We always set both the volatile and persistent bits so the firmware
-# replays our divert across power-saving wake events without needing a
-# re-driver round trip. The constants below name the four combinations
-# this module emits so call sites no longer read like bare magic bytes.
-_DIVERT_BUTTON_ONLY = 0x03  # 0x01 | 0x02       -- divert as button click
-_DIVERT_RAW_XY      = 0x33  # 0x01 | 0x02 | 0x10 | 0x20 -- divert + rawXY
-_UNDIVERT_BUTTON    = 0x02  # 0x02 only         -- revert button-only divert
-_UNDIVERT_RAW_XY    = 0x22  # 0x02 | 0x20       -- revert rawXY divert
+# REPROG_V4 ``setCidReporting`` control flags (fn 3 byte 2). Each setting
+# is a value bit paired with a "valid" bit one place above it; the firmware
+# changes a setting only when its valid bit is set and leaves it untouched
+# otherwise:
+#   bit 0 (0x01) = divert           bit 1 (0x02) = divert valid
+#   bit 4 (0x10) = rawXY            bit 5 (0x20) = rawXY valid
+# rawXY forwards the control's cursor deltas to us instead of the OS, which
+# pins the cursor while the control is held. Leaving rawXY's valid bit clear
+# keeps whatever rawXY state the control already has, so turning rawXY off
+# on a control that had it needs the valid bit with the value bit clear.
+_DIVERT_BUTTON_ONLY = 0x03  # 0x01 | 0x02        -- divert on, rawXY unchanged
+_DIVERT_RAW_XY      = 0x33  # 0x01 | 0x02 | 0x10 | 0x20 -- divert on, rawXY on
+_DIVERT_RAW_XY_OFF  = 0x23  # 0x01 | 0x02 | 0x20 -- divert on, rawXY off
+_UNDIVERT_BUTTON    = 0x02  # 0x02 only          -- divert off
+_UNDIVERT_RAW_XY    = 0x22  # 0x02 | 0x20        -- divert off, rawXY off
 
 MY_SW          = 0x0A        # arbitrary software-id used in our requests
 
@@ -1793,7 +1793,7 @@ class HidGestureListener:
             return False
         if free == self._gesture_pointer_free:
             return True
-        flags = _DIVERT_BUTTON_ONLY if free else _DIVERT_RAW_XY
+        flags = _DIVERT_RAW_XY_OFF if free else _DIVERT_RAW_XY
         try:
             self._tx(LONG_ID, self._feat_idx, 3,
                      [(cid >> 8) & 0xFF, cid & 0xFF, flags, 0x00, 0x00])
@@ -1802,6 +1802,8 @@ class HidGestureListener:
                   f"{_format_cid(cid)} failed: {exc}")
             return False
         self._gesture_pointer_free = free
+        print(f"[HidGesture] pointer {'free' if free else 'pinned'} on "
+              f"{_format_cid(cid)} (flags 0x{flags:02X})")
         return True
 
     def set_thumb_rawxy_enabled(self, enabled: bool) -> None:
@@ -1824,13 +1826,14 @@ class HidGestureListener:
             print(f"[HidGesture] thumb rawXY acquire FAILED {_format_cid(cid)}")
 
     def _thumb_rawxy_release(self):
-        """Return the thumb CID to button-only so the primary gesture CID
-        reclaims the rawXY stream and the OS cursor moves normally again."""
+        """Turn rawXY off on the thumb CID (still diverted as a button) so the
+        primary gesture CID reclaims the rawXY stream and the OS cursor moves
+        normally again."""
         cid = self._thumb_button_cid
         self._rawxy_owner = "gesture"
         if cid is None:
             return
-        self._set_cid_reporting(cid, _DIVERT_BUTTON_ONLY)
+        self._set_cid_reporting(cid, _DIVERT_RAW_XY_OFF)
 
     def _fire_thumb_button_down(self):
         if self._thumb_rawxy_enabled:
