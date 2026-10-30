@@ -29,11 +29,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 app = QApplication(sys.argv)
 
-# main_qml configures file logging on import and would append the probe's
-# output to the user's real Mouser log; a root handler makes it a no-op.
-import logging  # noqa: E402
-
-logging.getLogger().addHandler(logging.NullHandler())
+import _app_log_guard  # noqa: E402,F401  (before main_qml: keeps the real log clean)
 
 import main_qml  # noqa: E402  (sets the Material style the pages use)
 from core.config import DEFAULT_CONFIG  # noqa: E402

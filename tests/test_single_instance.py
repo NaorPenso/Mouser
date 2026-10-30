@@ -3,6 +3,8 @@ import unittest
 import uuid
 from unittest.mock import MagicMock, patch
 
+import _app_log_guard  # noqa: F401  (before main_qml: keeps tests out of the real log)
+
 try:
     import main_qml
     from PySide6.QtWidgets import QApplication

@@ -1,6 +1,8 @@
 import inspect
 import unittest
 
+import _app_log_guard  # noqa: F401  (before main_qml: keeps tests out of the real log)
+
 try:
     import main_qml
 except Exception:  # pragma: no cover - env without PySide6 / project deps
